@@ -192,8 +192,8 @@ class MLCEnvironment(Environment):
             topology.node[n]['up'] = False
         topology.graph['MLC_max'] = 1000+i
         for (src,dst,d) in topology.edges(data=True):
-            if not 'weight' in d:
-                topology.edge[src][dst]['weight']=3
+            if not 'quality' in d:
+                topology.edge[src][dst]['quality']=3
     
     @staticmethod
     def _get_ip4(node, idx=False, prefix=False):
@@ -283,8 +283,15 @@ class MLCEnvironment(Environment):
         elif action.kind == START:
             self.change_links(now)
             #run('mlc_loop --max %i -s' % self.experiment.topology.graph['MLC_max'])
+    
     def _set_link(self, src, dst, tx_q=None, rx_q=None):
         t = self.experiment.topology
+        # Update the topology:
+        if tx_q is not None:
+            t.edge[src][dst] = tx_q
+        if rx_q is not None:
+            t.edge[dst][src] = rx_q
+        # If nodes are up, modify the link
         src_online = t.node[src]['up'] in (BOOTING, UP)
         dst_online = t.node[dst]['up'] in (BOOTING, UP)
         if src_online and dst_online:
@@ -292,8 +299,8 @@ class MLCEnvironment(Environment):
                 'src': t.node[src]['MLC_id'],
                 'dst': t.node[dst]['MLC_id'],
                 'idx': self.protocol_idx,
-                'tx_q': t.edge[src][dst]['weight'] if tx_q is None else tx_q,
-                'rx_q': t.edge[dst][src]['weight'] if rx_q is None else rx_q,
+                'tx_q': t.edge[src][dst]['quality'],
+                'rx_q': t.edge[dst][src]['quality'],
             }
             run('mlc_link_set %(idx)s %(src)s %(idx)s %(dst)s %(tx_q)i %(rx_q)i' % c)
     
@@ -368,8 +375,7 @@ class MLCEnvironment(Environment):
                 if now < at:
                     sleep(at.total_seconds()-now.total_seconds())
                 now = at
-                print('hola')
-                self._set_link(src, dst, tx_q=weight, rx_q=weight)
+                self._set_link(src, dst, tx_q=weight)
         link_changes = self.experiment.topology.graph['link_changes']
         thread = threading.Thread(target=_change_links, args=(link_changes, now))
         thread.start()
