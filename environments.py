@@ -4,7 +4,7 @@ from datetime import timedelta
 from heapq import heappop
 from time import sleep
 
-from .utils import ssh, run, isiterable
+from utils import ssh, run, isiterable
 
 
 """ Status """

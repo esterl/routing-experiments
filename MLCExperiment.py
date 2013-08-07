@@ -2,9 +2,9 @@
 
 from datetime import timedelta as delta
 
-from . import monitors
-from .environments import MLCEnvironment
-from .experiments import Action, Experiment
+import monitors
+from environments import MLCEnvironment
+from experiments import Action, Experiment
 
 
 Action.load_config('/home/ester/PhD/mlc/MLCExperiment/cmd.conf')
