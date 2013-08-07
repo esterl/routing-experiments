@@ -65,8 +65,8 @@ class NetworkMonitor(Monitor):
 class MemoryMonitor(Monitor):
     def start(self, environment):
         pmap = "pmap -d %i|tail -1|awk '{print $2 " " $4 " " $6}'" % self.pid
-        cmd = "while true; do %s; sleep 1; done;" % pmap 
-        self.thread = environment.run_node(self.node, cmd, background=False)
+        pmap = "while true; do %s; sleep 1; done;" % pmap
+        self.thread = environment.run_node(self.node, pmap, background=False)
     
     def stop(self, environment):
         k = environment.run_node(self.node, 'kill %i' % self.thread.pid)
@@ -80,8 +80,8 @@ class MemoryMonitor(Monitor):
 
 class CPUMonitor(Monitor):
     def start(self, environment):
-        cmd = "perf stat -e cycles,instructions --pid {} --log-fd 2".format(self.pid)
-        self.thread = environment.run_node(self.node, cmd, background=True)
+        perf = "perf stat -e cycles,instructions --pid {} --log-fd 2".format(self.pid)
+        self.thread = environment.run_node(self.node, perf, background=True)
     
     def stop(self, environment):
         self.thread.execute("kill -s SIGINT %i" % self.thread.pid)
@@ -106,13 +106,13 @@ class ConnectivityMonitor(Monitor):
         # TODO same ssh connection for all pings
         for n in self.dsts:
             ipv6 = environment.get_ip6(n, self.iface, self.vlan)
-            cmd = 'ping6 -n -i 0.1 %s' % ipv6
-            thread = environment.run_node(self.src, cmd, background=True)
+            ping = 'ping6 -n -i 0.1 %s' % ipv6
+            thread = environment.run_node(self.src, ping, background=True)
             self.ping_threads.append(thread)
         # Monitor with tcpdump
         iface = environment.get_interface(self.src, self.iface)
-        cmd = "tcpdump -i %s -w %s -s 0 icmp6" % (iface, self.filename)
-        self.thread = environment.run_host(cmd)
+        tcpdump = "tcpdump -i %s -w %s -s 0 icmp6" % (iface, self.filename)
+        self.thread = environment.run_host(tcpdump)
     
     def stop(self, environment):
         #Kill tcpdump

@@ -1,14 +1,14 @@
-import subprocess
-import select
-import fcntl
-import functools
-import os
 import copy
+import threading
 from datetime import timedelta
+from heapq import heappop
 from time import sleep
-from heapq import heappush, heappop
+
+from .utils import ssh, run, isiterable
+
 
 """ Status """
+
 BOOTING = 'booting'
 UP = 'up'
 DOWN = 'down'
@@ -22,153 +22,12 @@ NETWORK = 'network'
 EXPERIMENT = 'experiment'
 
 
-popen = functools.partial(subprocess.Popen, stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-
-def non_block_read(output):
-    fd = output.fileno()
-    fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-    fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-    try:
-        result = output.read()
-    except:
-        result = b''
-    fcntl.fcntl(fd, fcntl.F_SETFL, fl)
-    return result or b''
-
-class SSHClient(object):
-    shell = "/bin/sh"
-    ssh_path = "/usr/bin/ssh"
-    
-    started = False
-    stoped = False
-    returncode = None
-    stdout = ""
-    stderr = ""
-    
-    def __init__(self, host, user=None, shell=None, ssh=None): 
-        if user is None:
-            self.user_host = host
-        else:
-            self.user_host = "{user}@{host}".format(user=user, host=host)
-        if shell is not None:
-            self.shell = shell
-        if ssh is not None:
-            self.ssh_path = ssh
-    
-    def _start_ssh_process(self):
-        no_host_keys = 'StrictHostKeyChecking=no'
-        args = [self.ssh_path, '-o', no_host_keys, self.user_host, self.shell]
-        self.proc = popen(args)
-        
-        poll_result = self.proc.poll()
-        if poll_result is not None:
-            self.returncode = poll_result
-            return self.proc.stderr.readlines()
-        
-        self.started = True
-        return None
-    
-    def _read(self, _file):
-        output = []
-        
-        while True:
-            _r, _w, _e = select.select([_file],[],[], 0)
-            if len(_r) == 0:
-                break
-            
-            data = non_block_read(_r[0])
-            if data is None:
-                break
-            
-            output.append(data)
-        return b''.join(output).decode()
-    
-    def write(self, data):
-        if data[-1] != '\n':
-            data += '\n'
-        data = bytes(data, 'ascii')
-        num = self.proc.stdin.write(data)
-        self.proc.stdin.flush()
-        return num
-    
-    def get_stderr(self):
-        self.stderr += self._read(self.proc.stderr)
-        return self.stderr
-    
-    def get_stdout(self):
-        self.stdout += self._read(self.proc.stdout)
-        return self.stdout
-    
-    def start(self):
-        if self.started:
-            raise Exception("Already started")
-        self._start_ssh_process()
-    
-    def stop(self):
-        if self.stoped:
-            raise Exception("Already stoped")
-        self.proc.terminate()
-    
-    def execute_background(self, command):
-        #Run in background:
-        if command[-1] != '&':
-            command = command + '&'
-        n = self.write(command)
-        #Read any output that may be waiting
-        self.stdout += self._read(self.proc.stdout)
-        #Save pid
-        command = 'echo $!'
-        self.write(command)
-        try: self.pid = int(self.proc.stdout.readline())
-        except ValueError: self.pid=None
-        return
-    
-    def execute_foreground(self, command):
-        #get bash pid:
-        self.stdout += self._read(self.proc.stdout)
-        self.write('echo $$')
-        try:
-            self.pid = int(self.proc.stdout.readline())
-        except ValueError:
-            pass #Should throw an exception or something
-        #run command:
-        self.write(command)
-        return
-
-    def execute(self, command, background=False):
-        if background:
-            self.execute_background(command)
-        else:
-            self.execute_foreground(command)
-
-
 class Environment(object):
     def prepare(self):
         raise NotImplementedError
     
     def run_experiment(experiment):
         raise NotImplementedError
-
-
-def run(cmd, mlc=True, async=True):
-    if mlc:
-        cmd = 'cd /home/ester/PhD/mlc; . ./mlc-vars.sh; %s' % cmd
-    print('\033[1m$ %s \033[0m' % cmd)
-    p = popen(cmd, executable='/bin/bash', shell=True)
-    if not async:
-        p.wait()
-    return p
-
-
-def ssh(addr, cmd):
-    client = SSHClient(addr)
-    client.start()
-    #channel = client.get_transport().open_session()
-    print('\033[1mssh@%s$ %s \033[0m' % (addr, cmd))
-    client.execute(cmd)
-    return client
 
 
 class MLCEnvironment(Environment):
@@ -243,14 +102,11 @@ class MLCEnvironment(Environment):
         node = self.experiment.topology.node[node]
         node_id = node['MLC_id']
         #TODO only if is waking
-        print('\033[1mssh@%s$ %s \033[0m' % (node_id, command))
-        if node['up']==BOOTING:
+        if node['up'] == BOOTING:
             run('lxc-wait -n mlc%i -s RUNNING' % node_id)
             node['up'] = UP
         ip = MLCEnvironment._get_ip4(node_id)
-        thread = SSHClient(ip)
-        thread.start()
-        thread.execute(command, background)
+        thread = ssh(ip, command)
         return thread
     
     def run_experiment(self,experiment):
@@ -283,6 +139,7 @@ class MLCEnvironment(Environment):
         elif action.kind == START:
             self.change_links(now)
             #run('mlc_loop --max %i -s' % self.experiment.topology.graph['MLC_max'])
+    
     def _set_link(self, src, dst, tx_q=None, rx_q=None):
         t = self.experiment.topology
         src_online = t.node[src]['up'] in (BOOTING, UP)
@@ -299,7 +156,7 @@ class MLCEnvironment(Environment):
     
     def _start_nodes(self, nodes):
         #Boot nodes
-        if not isinstance(nodes, list):
+        if not isiterable(nodes):
             nodes = [nodes]
         for node in nodes:
             n = self.experiment.topology.node[node]
@@ -311,7 +168,7 @@ class MLCEnvironment(Environment):
             self._set_link(src,dst)
     
     def _stop_nodes(self, nodes):
-        if not isinstance(nodes, list):
+        if not isiterable(nodes):
             nodes = [nodes]
         for node in nodes:
             n = self.experiment.topology.node[node]
@@ -320,7 +177,7 @@ class MLCEnvironment(Environment):
     
     # TODO Fix required parameters
     def _execute(self, action):
-        if not isinstance(action.target, list):
+        if not isiterable(action.target):
             action.target = [action.target]
         cmds = action.get_command()
         for target in action.target:
@@ -361,14 +218,13 @@ class MLCEnvironment(Environment):
         #print(action.pid)
         
         #Start monitors:
+    
     def change_links(self, now):
-        import threading
         def _change_links(link_changes, now):
             for (at, src, dst, weight) in link_changes:
                 if now < at:
                     sleep(at.total_seconds()-now.total_seconds())
                 now = at
-                print('hola')
                 self._set_link(src, dst, tx_q=weight, rx_q=weight)
         link_changes = self.experiment.topology.graph['link_changes']
         thread = threading.Thread(target=_change_links, args=(link_changes, now))
