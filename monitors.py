@@ -22,15 +22,19 @@ class NetworkMonitor(Monitor):
     def start(self, environment):
         if self.action:
             self.node = self.action.target
-        cmd = "tcpdump -i %s -w %s -s 0 %s" % ( self.get_interface(environment),
-                                    self.filename, self.get_filter(environment))
+        context = {
+            'iface': self.get_interface(environment),
+            'file': self.filename,
+            'filter': self.get_filter(environment)
+        }
+        cmd = "tcpdump -i %(iface)s -w %(file)s -s 0 %(filter)s" % context
         self.thread = environment.run_host(cmd)
     
     def stop(self, environment):
         #Kill tcpdump
         self.thread.terminate()
-        print zself.thread.stdout.read()
-        print self.thread.stderr.read()
+        print(self.thread.stdout.read())
+        print(self.thread.stderr.read())
     
     def info(self):
         pass
@@ -60,36 +64,30 @@ class NetworkMonitor(Monitor):
 
 class MemoryMonitor(Monitor):
     def start(self, environment):
-        cmd = ("while true; do "
-            "pmap -d %i|tail -1|awk '{print $2 " " $4 " " $6}';"
-            "sleep 1; done;") % self.pid
-        self.thread = environment.run_node(self.node, cmd)
-        self.pid_while = self.thread.next()
+        pmap = "pmap -d %i|tail -1|awk '{print $2 " " $4 " " $6}'" % self.pid
+        cmd = "while true; do %s; sleep 1; done;" % pmap 
+        self.thread = environment.run_node(self.node, cmd, background=False)
     
     def stop(self, environment):
-        kill = environment.run_node(self.node, "kill %i" % (self.pid_while))
-        kill.next()
-        kill.next()
-        stdout, stderr = self.thread.next()
-        print stdout
-        print stderr
+        k = environment.run_node(self.node, 'kill %i' % self.thread.pid)
+        k.stop()
+        print(self.thread.get_stderr())
+        print(self.thread.get_stdout())
     
     def info(self):
         pass
 
+
 class CPUMonitor(Monitor):
     def start(self, environment):
         cmd = "perf stat -e cycles,instructions --pid {} --log-fd 2".format(self.pid)
-        self.thread = environment.run_node(self.node, cmd)
-        self.thread.next()
+        self.thread = environment.run_node(self.node, cmd, background=True)
     
     def stop(self, environment):
-        kill = environment.run_node(self.node, "killall -s SIGINT perf_3.2")
-        kill.next()
-        kill.next()
-        stdout,stderr = self.thread.next()
-        print stdout
-        print stderr
+        self.thread.execute("kill -s SIGINT %i" % self.thread.pid)
+        print(self.thread.get_stderr())
+        print(self.thread.get_stdout())
+        self.thread.stop()
 
 
 class ConnectivityMonitor(Monitor):
@@ -99,16 +97,18 @@ class ConnectivityMonitor(Monitor):
         self.dsts = dsts
         self.iface = interface
         self.vlan = vlan
+        self.ping_threads = []
     
     def start(self, environment):
         # Start pings from 'src' to 'dsts'
         if not isinstance(self.dsts, list):
             dsts = [dsts]
+        # TODO same ssh connection for all pings
         for n in self.dsts:
-            cmd = 'ping6 -n -i 0.1 %s' % environment.get_ip6(n, self.iface, 
-                                                            self.vlan)
-            thread = environment.run_node(self.src, cmd)
-            thread.next()
+            ipv6 = environment.get_ip6(n, self.iface, self.vlan)
+            cmd = 'ping6 -n -i 0.1 %s' % ipv6
+            thread = environment.run_node(self.src, cmd, background=True)
+            self.ping_threads.append(thread)
         # Monitor with tcpdump
         iface = environment.get_interface(self.src, self.iface)
         cmd = "tcpdump -i %s -w %s -s 0 icmp6" % (iface, self.filename)
@@ -117,5 +117,9 @@ class ConnectivityMonitor(Monitor):
     def stop(self, environment):
         #Kill tcpdump
         self.thread.terminate()
-        print self.thread.stdout.read()
-        print self.thread.stderr.read()
+        print(self.thread.stdout.read())
+        print(self.thread.stderr.read())
+        #Kill pings:
+        for thread in self.ping_threads:
+            thread.execute("kill %i" % thread.pid)
+            thread.stop()
