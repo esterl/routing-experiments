@@ -2,6 +2,8 @@
 
 from datetime import timedelta as delta
 
+import networkx as nx
+
 import monitors
 from environments import MLCEnvironment
 from experiments import Action, Experiment

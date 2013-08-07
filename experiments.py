@@ -4,13 +4,13 @@ import copy
 from configparser import ConfigParser, NoOptionError
 from datetime import timedelta as delta
 from functools import total_ordering
-from time import sleep
+from heapq import heappush
 from time import sleep
 #from enum import Enum
 
 import networkx as nx
 
-from .utils import isiterable
+from utils import isiterable
 
 
 # TODO use enum

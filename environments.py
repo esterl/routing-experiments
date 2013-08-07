@@ -106,7 +106,11 @@ class MLCEnvironment(Environment):
             run('lxc-wait -n mlc%i -s RUNNING' % node_id)
             node['up'] = UP
         ip = MLCEnvironment._get_ip4(node_id)
-        thread = ssh(ip, command)
+        from utils import SSHClient
+        thread = SSHClient(ip)
+        thread.start()
+        thread.execute(command, background)
+#        thread = ssh(ip, command)
         return thread
     
     def run_experiment(self,experiment):
@@ -144,9 +148,9 @@ class MLCEnvironment(Environment):
         t = self.experiment.topology
         # Update the topology:
         if tx_q is not None:
-            t.edge[src][dst] = tx_q
+            t.edge[src][dst]['quality'] = tx_q
         if rx_q is not None:
-            t.edge[dst][src] = rx_q
+            t.edge[dst][src]['quality'] = rx_q
         # If nodes are up, modify the link
         src_online = t.node[src]['up'] in (BOOTING, UP)
         dst_online = t.node[dst]['up'] in (BOOTING, UP)
