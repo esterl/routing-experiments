@@ -32,9 +32,9 @@ class Monitor(object):
 
 class NetworkMonitor(Monitor):
     command = None
-    def __init__(self, command=None, incoming=True, outgoing=True, basename='traffic'):
+    def __init__(self, action=None, incoming=True, outgoing=True, basename='traffic'):
         self.basename = basename
-        self.command = command
+        self.action = action
         self.incoming = incoming
         self.outgoing = outgoing
         self.intervals = []

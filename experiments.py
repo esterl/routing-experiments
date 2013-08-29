@@ -77,16 +77,23 @@ class Action(object):
 class Experiment(object):
     
     def __str__(self):
+        self.actions.sort()
         return '\n'.join([ str(a) for a in self.actions ])
     
     def __init__(self, basename, topology):
+        self.topology = topology
+        self.actions = []
+        self._last = delta(0)
+        self.set_name(basename)
+    
+    def set_name(self, basename):
         self.path = os.path.dirname(os.path.abspath(basename))
         self.name = os.path.basename(basename)
         if not os.path.isdir(basename):
             os.mkdir(basename)
-        self.topology = topology
-        self.actions = []
-        self._last = delta(0)
+        for action in self.actions:
+            for monitor in action.monitors:
+                monitor.set_filename(self.path, self.name)
     
     def boot(self, nodes=None, at=None, delay=delta(0), inter_delay=delta(0)):
         return self.schedule(BOOT, nodes, at, delay, inter_delay)
@@ -129,8 +136,10 @@ class Experiment(object):
         else:
             if callable(delay):
                 delay = delta(seconds=delay())
-            self._last = at + delay
-            entry = Action(action, self._last, target, command, monitors=monitors)
+            at += delay
+            if at > self._last:
+                self._last = at  
+            entry = Action(action, at, target, command, monitors=monitors)
             self.actions.append(entry)
             return entry.get_id()
     
@@ -193,4 +202,5 @@ class Experiment(object):
                 f.write(','.join(data))
                 f.write('\n')
         # Save experiment topology:
-        self.topology.save('%s_topology' % self.name, format='graphml')
+        topo_name = os.path.join(self.path, self.name, '%s_topology' % self.name)
+        self.topology.save(topo_name, format='graphml')

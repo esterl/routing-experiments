@@ -128,7 +128,7 @@ class SSHClient(object):
         try:
             self.pid = int(self.proc.stdout.readline())
         except ValueError:
-            pass #Should throw an exception or something
+            print('ValueError @ execute_foreground')
         #run command:
         self.write(command)
         return

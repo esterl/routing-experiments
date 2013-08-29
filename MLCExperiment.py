@@ -14,7 +14,7 @@ Action.load_config('/home/ester/PhD/mlc/MLCExperiment/cmd.conf')
 # 4 Variables: graph type, link change frequency, link quality, network size.
 # Results in 16 different experiments.
 repetitions = 1
-experiment_length = delta(seconds=30).total_seconds()
+experiment_length = delta(minutes=30).total_seconds()
 low_q = functools.partial(random.choice, [5,7,9,11,13])
 high_q = functools.partial(random.choice, [3,5])
 fast_wait = functools.partial(random.expovariate, 1)
@@ -58,23 +58,36 @@ env = MLCEnvironment()
 env.prepare()
 for i in range(repetitions):
     for graph in graphs:
-        e = Experiment('/tmp/experiment_%s%i' % (graph['name'],i), topology = graph)
+        e = Experiment('/tmp/experiment_%s%i_bmx' % (graph['name'],i), topology = graph)
         N = len(graph.vs)
         e.boot(range(N))
         e.start()
         cpu = monitors.CPUMonitor()
         mem = monitors.MemoryMonitor()
-        net = monitors.NetworkMonitor()
         # Monitor connectivity between end points of the longest path:
         (src,dst) = graph.get_longest_path()
         con = monitors.ConnectivityMonitor(src=src, dsts=dst, vlan=2)
-        e.monitor(monitors=[net,con])
+        e.monitor(monitors=[con])
         # Start bmx6 in every node:
         inter_delay = functools.partial(random.uniform,0,5)
-        e.execute('BMX6', inter_delay=inter_delay, monitors=[cpu,mem])
+        routing = e.execute('BMX6', inter_delay=inter_delay, monitors=[cpu,mem])
+        net = monitors.NetworkMonitor(action=routing)
+        net.add_interval(delta(minutes=10), delta(minutes=30), tag='steady')
+        e.monitor(at=delta(0), monitors=[net])
         e.stop(delay=delta(seconds=experiment_length))
         print(e)
         env.run_experiment(e)
+        # Run OLSR:
+        e.set_name('/tmp/experiment_%s%i_olsr' % (graph['name'],i))
+        e.modify_command(routing, 'OLSR')
+        print(e)
+        env.run_experiment(e)
+        # Run Babel:
+        e.set_name('/tmp/experiment_%s%i_babel' % (graph['name'],i))
+        e.modify_command(routing, 'Babel')
+        print(e)
+        env.run_experiment(e)
+
 
 """
 e = Experiment('/tmp/test',topology=t)

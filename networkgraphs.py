@@ -161,6 +161,8 @@ class NetworkGraph(igraph.Graph):
             except KeyError:
                 pass
         print(self)
+        print(filename)
+        print(format)
         super(NetworkGraph, self).save(filename, format)
     
     def get_longest_path(self):
