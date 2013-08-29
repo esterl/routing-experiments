@@ -1,12 +1,15 @@
+# Class SSHClient is an adaptation of niwibe SSHClient, it can be found at: 
+# https://gist.github.com/niwibe/2431088/
 import fcntl
 import functools
 import select
 import os
 import subprocess
+import collections
 
 
 def isiterable(obj):
-    return hasattr(obj, '__iter__')
+    return isinstance(obj, collections.Iterable)
 
 
 popen = functools.partial(subprocess.Popen, stdin=subprocess.PIPE,
@@ -18,12 +21,14 @@ class SSHClient(object):
     ssh_path = "/usr/bin/ssh"
     
     started = False
-    stoped = False
+    stopped = False
     returncode = None
     stdout = ""
     stderr = ""
     
     def __init__(self, host, user=None, shell=None, ssh=None): 
+        self.stdout = ""
+        self.stderr = ""
         if user is None:
             self.user_host = host
         else:
@@ -60,11 +65,11 @@ class SSHClient(object):
         
         output = []
         while True:
-            _r, _w, _e = select.select([_file],[],[], 0)
+            _r, _w, _e = select.select([_file],[],[], 0.1)
             if len(_r) == 0:
                 break
             data = non_block_read(_r[0])
-            if data is None:
+            if data is None or data is b'':
                 break
             output.append(data)
         return b''.join(output).decode()
@@ -78,11 +83,11 @@ class SSHClient(object):
         return num
     
     def get_stderr(self):
-        self.stderr += self._read(self.proc.stderr)
+        if not self.stopped: self.stderr += self._read(self.proc.stderr)
         return self.stderr
     
     def get_stdout(self):
-        self.stdout += self._read(self.proc.stdout)
+        if not self.stopped: self.stdout += self._read(self.proc.stdout)
         return self.stdout
     
     def start(self):
@@ -91,11 +96,15 @@ class SSHClient(object):
         self._start_ssh_process()
     
     def stop(self):
-        if self.stoped:
-            raise Exception("Already stoped")
+        if self.stopped:
+            raise Exception("Already stopped")
+        self.get_stderr()
+        self.get_stdout()
+        self.stopped = True
         self.proc.terminate()
     
     def execute_background(self, command):
+        print('EXECUTE background %s' % command)
         #Run in background:
         if command[-1] != '&':
             command = command + '&'
@@ -105,11 +114,14 @@ class SSHClient(object):
         #Save pid
         command = 'echo $!'
         self.write(command)
-        try: self.pid = int(self.proc.stdout.readline())
-        except ValueError: self.pid=None
+        try: 
+            self.pid = int(self.proc.stdout.readline())
+        except ValueError:
+            self.pid=None
         return
     
     def execute_foreground(self, command):
+        print('EXECUTE foreground %s' % command)
         #get bash pid:
         self.stdout += self._read(self.proc.stdout)
         self.write('echo $$')

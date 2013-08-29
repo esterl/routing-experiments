@@ -1,6 +1,6 @@
 import copy
 import threading
-from datetime import timedelta
+from datetime import timedelta,datetime
 from heapq import heappop
 from time import sleep
 
@@ -46,13 +46,13 @@ class MLCEnvironment(Environment):
         run('./mlc-init-host.sh > /dev/null', async=False)
     
     def prepare_topology(self, topology):
-        for [i,n] in enumerate(topology.nodes()):
-            topology.node[n]['MLC_id'] = 1000+i
-            topology.node[n]['up'] = False
-        topology.graph['MLC_max'] = 1000+i
-        for (src,dst,d) in topology.edges(data=True):
-            if not 'quality' in d:
-                topology.edge[src][dst]['quality']=3
+        for [i,n] in enumerate(topology.vs):
+            n['MLC_id'] = 1000+i
+            n['up'] = False
+        topology['MLC_max'] = 1000+i
+        for link in topology.es:
+            if 'quality' not in link.attribute_names():
+                link['quality'] = 3
     
     @staticmethod
     def _get_ip4(node, idx=False, prefix=False):
@@ -77,13 +77,13 @@ class MLCEnvironment(Environment):
     def get_interface(self, node, idx=None):
         if idx is None:
             idx = MLCEnvironment.protocol_idx
-        n = self.experiment.topology.node[node]['MLC_id']
+        n = self.experiment.topology.vs[node]['MLC_id']
         return '%s%i_%i' % (MLCEnvironment.veth_prefix, n, idx)
     
     def get_mac(self, node, idx=None):
         if idx is None:
             idx = MLCEnvironment.protocol_idx
-        n = self.experiment.topology.node[node]['MLC_id']
+        n = self.experiment.topology.vs[node]['MLC_id']
         words = (MLCEnvironment.mac_prefix, n/100, n%100, idx)
         return '%s:%02d:%02d:%02d' % words
     
@@ -99,7 +99,7 @@ class MLCEnvironment(Environment):
         return run(cmd, mlc=False)
     
     def run_node(self, node, command, background=False):
-        node = self.experiment.topology.node[node]
+        node = self.experiment.topology.vs[node]
         node_id = node['MLC_id']
         #TODO only if is waking
         if node['up'] == BOOTING:
@@ -116,73 +116,86 @@ class MLCEnvironment(Environment):
     def run_experiment(self,experiment):
         self.experiment = experiment
         self.prepare_topology(experiment.topology)
-        now = timedelta(0)
         # Go action by action:
-        while experiment.actions:
-            action = heappop(experiment.actions)
-            if now < action.at:
-                sleep(action.at.total_seconds() - now.total_seconds())
-                now = action.at
-            self._process_action(action, now)
+        experiment.actions.sort()
+        start = now = datetime.now()
+        for action in experiment.actions:
+            if now < start + action.at:
+                sleep((start + action.at-now).total_seconds())
+            self._process_action(action, action.at)
+            now = datetime.now()
+        experiment.done()
     
     def _process_action(self, action, now):
         if action.kind == BOOT:
+            print('booting nodes %s' % action.target)
             self._start_nodes(action.target)
         elif action.kind == HALT:
+            print('halting nodes %s' % action.target)
             self._stop_nodes(action.target)
         elif action.kind == EXEC:
+            print('executing %s' % action.get_command())
             self._execute(action)
         elif action.kind == MON:
             for monitor in action.monitors:
+                print('runing monitor %s' % monitor.__class__)
                 self.monitors.append(monitor)
                 monitor.action = None
                 monitor.start(self)
         elif action.kind == STOP:
+            print('stopping experiment')
             for monitor in self.monitors:
-                monitor.stop(self)
+                print('stoping monitor %s' % monitor.__class__)
+                monitor.stop()
+            print('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'])
+            run('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'], async=False)
         elif action.kind == START:
             self.change_links(now)
-            #run('mlc_loop --max %i -s' % self.experiment.topology.graph['MLC_max'])
     
     def _set_link(self, src, dst, tx_q=None, rx_q=None):
         t = self.experiment.topology
         # Update the topology:
+        tx = t.get_eid(src,dst)
+        rx = t.get_eid(dst,src)
         if tx_q is not None:
-            t.edge[src][dst]['quality'] = tx_q
+            t.es[tx]['quality'] = tx_q
         if rx_q is not None:
-            t.edge[dst][src]['quality'] = rx_q
+            t.es[rx]['quality'] = rx_q
         # If nodes are up, modify the link
-        src_online = t.node[src]['up'] in (BOOTING, UP)
-        dst_online = t.node[dst]['up'] in (BOOTING, UP)
+        src_online = t.vs[src]['up'] in (BOOTING, UP)
+        dst_online = t.vs[dst]['up'] in (BOOTING, UP)
         if src_online and dst_online:
             c = {
-                'src': t.node[src]['MLC_id'],
-                'dst': t.node[dst]['MLC_id'],
+                'src': t.vs[src]['MLC_id'],
+                'dst': t.vs[dst]['MLC_id'],
                 'idx': self.protocol_idx,
-                'tx_q': t.edge[src][dst]['quality'],
-                'rx_q': t.edge[dst][src]['quality'],
+                'tx_q': t.es[tx]['quality'],
+                'rx_q': t.es[rx]['quality'],
             }
-            run('mlc_link_set %(idx)s %(src)s %(idx)s %(dst)s %(tx_q)i %(rx_q)i' % c)
+            run('mlc_link_set %(idx)s %(src)s %(idx)s %(dst)s %(tx_q)i %(rx_q)i' % c, async=False)
     
     def _start_nodes(self, nodes):
         #Boot nodes
         if not isiterable(nodes):
             nodes = [nodes]
         for node in nodes:
-            n = self.experiment.topology.node[node]
-            run('mlc_loop --min %i -b' % n['MLC_id'])
+            n = self.experiment.topology.vs[node]
+            run('mlc_loop --min %i -b' % n['MLC_id'], async=False)
             n['up'] = BOOTING
         #Stablish links
         t = self.experiment.topology
-        for (src,dst) in t.edges():
-            self._set_link(src,dst)
+        for link in t.es():
+            self._set_link(link.source,link.target)
     
     def _stop_nodes(self, nodes):
+        print('STOPPING NODES')
         if not isiterable(nodes):
             nodes = [nodes]
         for node in nodes:
-            n = self.experiment.topology.node[node]
+            n = self.experiment.topology.vs[node]
+            print('mlc_loop --min %i -s' % n['MLC_id'])
             run('mlc_loop --min %i -s' % n['MLC_id'])
+            run('lxc-wait -n mlc%i -s STOPPED' % n['MLC_id'])
             n['up'] = DOWN
     
     # TODO Fix required parameters
@@ -190,8 +203,9 @@ class MLCEnvironment(Environment):
         if not isiterable(action.target):
             action.target = [action.target]
         cmds = action.get_command()
+        list_mon = []
         for target in action.target:
-            node = self.experiment.topology.node[target]
+            node = self.experiment.topology.vs[target]
             # TODO check if we want something different
             if node['up'] == DOWN:
                 break
@@ -206,13 +220,15 @@ class MLCEnvironment(Environment):
             thread.get_stdout()
             thread.execute(action.get_pid_cmd())
             action.pid = int(thread.proc.stdout.readline())
+            # Monitors need to be multiplied for every command
             for monitor in action.monitors:
-                aux_mon = copy.deepcopy(monitor)
+                aux_mon = copy.copy(monitor)
                 self.monitors.append(aux_mon)
+                list_mon.append(aux_mon)
                 aux_mon.action = action
-                aux_mon.pid = action.pid
-                aux_mon.node = target
+                aux_mon.target = target
                 aux_mon.start(self)
+        action.monitors = list_mon
         # TODO retry several times
         #for cmd in cmds.split("\n"):
         #    try: stdin,stdout,stderr = ssh.exec_command(action.get_command())
@@ -229,6 +245,7 @@ class MLCEnvironment(Environment):
         
         #Start monitors:
     
+    # TODO check if we really need "now"
     def change_links(self, now):
         def _change_links(link_changes, now):
             for (at, src, dst, weight) in link_changes:
@@ -236,6 +253,7 @@ class MLCEnvironment(Environment):
                     sleep(at.total_seconds()-now.total_seconds())
                 now = at
                 self._set_link(src, dst, tx_q=weight)
-        link_changes = self.experiment.topology.graph['link_changes']
-        thread = threading.Thread(target=_change_links, args=(link_changes, now))
-        thread.start()
+        if 'link_changes' in self.experiment.topology.attributes():
+            link_changes = self.experiment.topology['link_changes']
+            thread = threading.Thread(target=_change_links, args=(link_changes, now))
+            thread.start()

@@ -1,14 +1,12 @@
 import itertools
 import copy
+import os.path
 
 from configparser import ConfigParser, NoOptionError
 from datetime import timedelta as delta
 from functools import total_ordering
-from heapq import heappush
 from time import sleep
 #from enum import Enum
-
-import networkx as nx
 
 from utils import isiterable
 
@@ -27,8 +25,7 @@ EXPERIMENT = 'experiment'
 
 @total_ordering
 class Action(object):
-    commands = ConfigParser({'pid':'ps -o pid -C "%(Command)s"'})
-    
+    commands = ConfigParser({'pid': 'ps -o pid -C "%(Command)s"'})
     _counter = itertools.count()
     
     def __str__(self):
@@ -66,10 +63,15 @@ class Action(object):
     
     def get_pid_cmd(self):
         return Action.commands.get(self._command, 'pid')
-
-
-class Topology(nx.Graph):
-    pass
+    
+    def get_id(self):
+        return self._id
+    
+    def modify(self, new_command):
+        if self.kind != EXEC:
+            print('Only execute actions can be changed')
+        else:
+            self._command = new_command
 
 
 class Experiment(object):
@@ -77,47 +79,118 @@ class Experiment(object):
     def __str__(self):
         return '\n'.join([ str(a) for a in self.actions ])
     
-    def __init__(self,topology=Topology()):
+    def __init__(self, basename, topology):
+        self.path = os.path.dirname(os.path.abspath(basename))
+        self.name = os.path.basename(basename)
+        if not os.path.isdir(basename):
+            os.mkdir(basename)
         self.topology = topology
         self.actions = []
         self._last = delta(0)
     
     def boot(self, nodes=None, at=None, delay=delta(0), inter_delay=delta(0)):
-        self.schedule(BOOT, nodes, at, delay, inter_delay)
+        return self.schedule(BOOT, nodes, at, delay, inter_delay)
     
     def halt(self, nodes=None, at=None, delay=delta(0), inter_delay=delta(0)):
-        self.schedule(HALT, nodes, at, delay, inter_delay)
+        return self.schedule(HALT, nodes, at, delay, inter_delay)
     
     def apply_dynamic_links(self, at=None, delay=delta(0), inter_delay=delta(0)):
-        self.schedule(START, NETWORK, at, delay, inter_delay)
+        return self.schedule(START, NETWORK, at, delay, inter_delay)
     
-    def execute(self, command, nodes=None, at=None, delay=delta(0), 
-                inter_delay=delta(0), monitors=[]):
-        self.schedule(EXEC, nodes, at, delay, inter_delay, command, monitors)
+    def execute(self, command, nodes=None, at=None, delay=delta(0), inter_delay=delta(0), monitors=[]):
+        return self.schedule(EXEC, nodes, at, delay, inter_delay, command, monitors)
     
     def start(self, at=None, delay=delta(0)):
-        self.schedule(START, EXPERIMENT, at, delay, delta(0))
+        return self.schedule(START, EXPERIMENT, at, delay, delta(0))
     
     def stop(self, at=None, delay=delta(0), inter_delay=delta(0)):
-        self.schedule(STOP, EXPERIMENT, at, delay, inter_delay)
+        return self.schedule(STOP, EXPERIMENT, at, delay, inter_delay)
     
     def monitor(self, monitors, at=None, delay=delta(0), inter_delay=delta(0)):
-        self.schedule(MON, EXPERIMENT, at, delay, inter_delay, monitors=monitors)
+        return self.schedule(MON, EXPERIMENT, at, delay, inter_delay, monitors=monitors)
     
     def schedule(self, action, target, at, delay, inter_delay, command="", monitors=[]):
+        for monitor in monitors:
+            monitor.set_filename(self.path, self.name)
+            monitor.target = target
         if target is None:
-            target = self.topology.nodes()
+            target = self.topology.vs.indices
         if at is None:
             at = self._last
         if inter_delay != delta(0) and isiterable(target):
+            result = []
             for t in target:
-                self.schedule(action, t, at, delay, inter_delay, command, monitors)
+                res = self.schedule(action, t, at, delay, inter_delay, command, monitors)
+                result.append(res)
                 at = None
                 delay = inter_delay
                 monitors = copy.deepcopy(monitors)
+            return result
         else:
             if callable(delay):
-                delay = delay()
+                delay = delta(seconds=delay())
             self._last = at + delay
             entry = Action(action, self._last, target, command, monitors=monitors)
-            heappush(self.actions, entry)
+            self.actions.append(entry)
+            return entry.get_id()
+    
+    def modify_command(self, action_ids, new_command):
+        if not isiterable(action_ids):
+            action_ids = [action_ids]
+        for action in self.actions:
+            if action.get_id() in action_ids:
+                action.modify(new_command)
+    
+    def done(self):
+        # Retrieve and save the data of every monitor
+        self.global_data = dict()
+        self.target_data = dict()
+        # Retrieve data of every monitor
+        for action in self.actions:
+            for monitor in action.monitors:
+                global_data = monitor.get_global_data()
+                print('monitor class %s' % monitor.__class__)
+                print(global_data)
+                if global_data:
+                    for key,value in global_data.items():
+                        self.global_data[key] = str(value)
+                target_data = monitor.get_target_data()
+                print(target_data)
+                print(monitor.__class__)
+                print(target_data)
+                if not isinstance(target_data,list):
+                    target_data = [target_data]
+                for t_d in target_data:
+                    (target, data) = t_d
+                    if target:
+                        if target in self.target_data:
+                            self.target_data[target].update(data)
+                        else:
+                            self.target_data[target] = data
+        # Save global_data and target_data
+        # Global data
+        global_filename = os.path.join(self.path, self.name, '%s_global' % self.name)
+        with open(global_filename, 'w') as f:
+            f.write(','.join(self.global_data.keys()))
+            f.write('\n')
+            f.write(','.join(self.global_data.values()))
+            f.write('\n')
+        target_filename = os.path.join(self.path, self.name, '%s_target' % self.name)
+        # Target data
+        # Get all the headers:
+        headers = set()
+        print('target_data')
+        print(self.target_data)
+        for target_dict in self.target_data.values():
+            headers |= target_dict.keys()
+        with open(target_filename, 'w') as f:
+            f.write('target,')
+            f.write(','.join(headers))
+            f.write('\n')
+            for (target, target_dict) in self.target_data.items():
+                data = [ str(target) ]
+                data += [ str(target_dict.get(key, '<NA>')) for key in headers ]
+                f.write(','.join(data))
+                f.write('\n')
+        # Save experiment topology:
+        self.topology.save('%s_topology' % self.name, format='graphml')
