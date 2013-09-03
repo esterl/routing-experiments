@@ -166,7 +166,7 @@ class MemoryMonitor(Monitor):
         thread.stop()
         data = []
         for line in stdout:
-            if line && len(line.split())==3:
+            if line and len(line.split())==3:
                 data.append(numpy.fromstring(line, dtype=int, sep='K'))
         data = numpy.vstack(data)
         # Compute average:
