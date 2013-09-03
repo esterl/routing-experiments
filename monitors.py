@@ -126,7 +126,7 @@ class NetworkMonitor(Monitor):
         if self.target == 'experiment':
             return self.env.get_bridge()
         else:
-            return self.get_interface(self.target)
+            return self.env.get_interface(self.target)
     
     def get_filter(self):
         filters = []
@@ -154,7 +154,7 @@ class MemoryMonitor(Monitor):
         self.env = environment
         # From pmap output get 'mapped' 'writeable/private' 'shared'
         pmap = "pmap -d %i|tail -1|awk '{print $2 \" \" $4 \" \" $6}'" % self.action.pid
-        pmap = "while true; do %s; sleep 1; done > /tmp/%s" % ( pmap, self.basename)
+        pmap = "while true; do %s; sleep 10; done > /tmp/%s" % ( pmap, self.basename)
         thread = environment.run_node(self.target, pmap, background=True)
         self.pid = thread.pid
         thread.stop()
@@ -166,7 +166,7 @@ class MemoryMonitor(Monitor):
         thread.stop()
         data = []
         for line in stdout:
-            if line:
+            if line && len(line.split())==3:
                 data.append(numpy.fromstring(line, dtype=int, sep='K'))
         data = numpy.vstack(data)
         # Compute average:
