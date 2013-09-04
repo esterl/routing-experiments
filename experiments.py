@@ -117,8 +117,12 @@ class Experiment(object):
         return self.schedule(MON, EXPERIMENT, at, delay, inter_delay, monitors=monitors)
     
     def schedule(self, action, target, at, delay, inter_delay, command="", monitors=[]):
+        if not isiterable(monitors):
+            monitors = [monitors]
         for monitor in monitors:
             monitor.set_filename(self.path, self.name)
+            if target and not isiterable(target):
+                monitor.add_tag(str(target))
             monitor.target = target
         if target is None:
             target = self.topology.vs.indices
@@ -127,11 +131,11 @@ class Experiment(object):
         if inter_delay != delta(0) and isiterable(target):
             result = []
             for t in target:
-                res = self.schedule(action, t, at, delay, inter_delay, command, monitors)
+                monitors_copy = copy.deepcopy(monitors)
+                res = self.schedule(action, t, at, delay, inter_delay, command, monitors_copy)
                 result.append(res)
                 at = None
                 delay = inter_delay
-                monitors = copy.deepcopy(monitors)
             return result
         else:
             if callable(delay):
@@ -151,6 +155,9 @@ class Experiment(object):
                 action.modify(new_command)
     
     def done(self):
+        # Save experiment topology:
+        topo_name = os.path.join(self.path, self.name, '%s_topology' % self.name)
+        self.topology.save(topo_name, format='graphml')
         # Retrieve and save the data of every monitor
         self.global_data = dict()
         self.target_data = dict()
@@ -179,11 +186,13 @@ class Experiment(object):
         # Save global_data and target_data
         # Global data
         global_filename = os.path.join(self.path, self.name, '%s_global' % self.name)
+        self.global_data['graph_file'] = topo_name
         with open(global_filename, 'w') as f:
-            f.write(','.join(self.global_data.keys()))
-            f.write('\n')
-            f.write(','.join(self.global_data.values()))
-            f.write('\n')
+            f.write('"')
+            f.write('","'.join(self.global_data.keys()))
+            f.write('"\n"')
+            f.write('","'.join(self.global_data.values()))
+            f.write('"\n')
         target_filename = os.path.join(self.path, self.name, '%s_target' % self.name)
         # Target data
         # Get all the headers:
@@ -193,14 +202,13 @@ class Experiment(object):
         for target_dict in self.target_data.values():
             headers |= target_dict.keys()
         with open(target_filename, 'w') as f:
-            f.write('target,')
-            f.write(','.join(headers))
-            f.write('\n')
+            f.write('"target","')
+            f.write('","'.join(headers))
+            f.write('"\n')
             for (target, target_dict) in self.target_data.items():
                 data = [ str(target) ]
                 data += [ str(target_dict.get(key, '<NA>')) for key in headers ]
-                f.write(','.join(data))
-                f.write('\n')
-        # Save experiment topology:
-        topo_name = os.path.join(self.path, self.name, '%s_topology' % self.name)
-        self.topology.save(topo_name, format='graphml')
+                f.write('"')
+                f.write('","'.join(data))
+                f.write('"\n')
+

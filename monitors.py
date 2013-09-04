@@ -76,7 +76,7 @@ class NetworkMonitor(Monitor):
             for (tag, interval) in self.intervals:
                 result.update(self._get_data(interval, tag))
             result.update(self._get_data())
-            return (self.node, result)
+            return (self.target, result)
             # TODO fix it so that get_X_data does not repeat code
     
     def _get_data(self, interval=None, tag=None):
@@ -98,7 +98,7 @@ class NetworkMonitor(Monitor):
             if isinstance(end, datetime):
                 filters.append("frame.time_epoch < %f" % time.mktime(end.timetuple()))
             elif isinstance(end, timedelta):
-                filters.append("frame.time_relative > %f" % end.total_seconds())
+                filters.append("frame.time_relative < %f" % end.total_seconds())
             filters = "&&".join(filters)
             tshark = (
                 'tshark -q -z io,stat,0,'
@@ -116,8 +116,8 @@ class NetworkMonitor(Monitor):
                 self.filename,
                 stats[3],
                 stats[4],
-                float(stats[4])/duration,
-                float(stats[3])/duration
+                float(stats[4])/duration if duration != 0 else '<NA>',
+                float(stats[3])/duration if duration != 0 else '<NA>'
             ]
         return dict(zip(headers, stats))
             
@@ -168,9 +168,12 @@ class MemoryMonitor(Monitor):
         for line in stdout:
             if line and len(line.split())==3:
                 data.append(numpy.fromstring(line, dtype=int, sep='K'))
-        data = numpy.vstack(data)
-        # Compute average:
-        mean = data.mean(axis=0).tolist()
+        if data:
+            data = numpy.vstack(data)
+            # Compute average:
+            mean = data.mean(axis=0).tolist()
+        else:
+            mean = [ '<NA>', '<NA>', '<NA>']
         header = ['mapped','writeable/private','shared']
         self.data = dict(zip(header, mean))
         # TODO Update numpy version so that it can have a header or write manually the header
