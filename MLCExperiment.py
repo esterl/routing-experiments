@@ -13,7 +13,7 @@ import logging
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s',
-    datefmt='%m/%d/%Y %I:%M:%S %p',
+    datefmt='m/%d/%Y %I:%M:%S %p',
     level=logging.INFO)
 
 
