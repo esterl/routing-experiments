@@ -4,6 +4,7 @@ import numpy.lib.recfunctions as rf
 import os.path
 from datetime import datetime, timedelta
 
+
 class Monitor(object):
     basename = ''
     filename = '/tmp/test'
@@ -32,6 +33,7 @@ class Monitor(object):
 
 class NetworkMonitor(Monitor):
     command = None
+    
     def __init__(self, action=None, incoming=True, outgoing=True, basename='traffic'):
         self.basename = basename
         self.action = action
@@ -82,7 +84,7 @@ class NetworkMonitor(Monitor):
     def _get_data(self, interval=None, tag=None):
         headers = ["Filename", "Num_packets", "Bytes", "Byte_rate", "Packet_rate"]
         if tag is not None:
-            headers = [h + "_" + tag for h in headers]
+            headers = [ h + "_" + tag for h in headers ]
         if interval is None:
             capinfos = "capinfos -cdTmxyr %s" % self.filename
             p = self.env.run_host(capinfos)
@@ -173,7 +175,7 @@ class MemoryMonitor(Monitor):
             # Compute average:
             mean = data.mean(axis=0).tolist()
         else:
-            mean = [ '<NA>', '<NA>', '<NA>']
+            mean = ['<NA>', '<NA>', '<NA>']
         header = ['mapped','writeable/private','shared']
         self.data = dict(zip(header, mean))
         # TODO Update numpy version so that it can have a header or write manually the header
@@ -192,7 +194,7 @@ class CPUMonitor(Monitor):
         self.env = environment
         perf = ('perf stat -x , -e task-clock,cycles,instructions '
                 '--pid %i --log-fd 2 2> /tmp/%s'
-                ) % (self.action.pid, self.basename)
+        ) % (self.action.pid, self.basename)
         thread = environment.run_node(self.target, perf, background=True)
         self.pid = thread.pid
         thread.stop()
@@ -227,7 +229,7 @@ class ConnectivityMonitor(Monitor):
         if not isinstance(self.dsts, list):
             self.dsts = [self.dsts]
         # TODO same ssh connection for all pings
-        self.dst_ips = [environment.get_ip6(dst, self.iface, self.vlan) for dst in self.dsts]
+        self.dst_ips = [ environment.get_ip6(dst, self.iface, self.vlan) for dst in self.dsts ]
         for ip in self.dst_ips:
             ping = 'ping6 -q -n -i 0.1 %s' % ip
             thread = environment.run_node(self.src, ping, background=True)
@@ -267,7 +269,7 @@ class ConnectivityMonitor(Monitor):
                   '-T fields -e frame.time_relative -e icmpv6.echo.sequence_number '
                   '"ipv6.addr==%s&&icmpv6.type==%i" '
                   '-E separator=,'
-                ) # %(filename, ip, icmpv6.type)
+        ) # %(filename, ip, icmpv6.type)
         p = self.env.run_host(tshark % (self.filename, ip, 128))
         reqs = p.stdout.readlines()
         data = [ numpy.fromstring(line.decode().strip(), dtype=float , sep=',') for line in reqs ]
@@ -277,7 +279,7 @@ class ConnectivityMonitor(Monitor):
         reps = p.stdout.readlines()
         data = [ numpy.fromstring(line.decode().strip(), dtype=float, sep=',') for line in reps ]
         reps = numpy.vstack(data) if data else numpy.array([[]])
-        reps.dtype = [('time_rep',float),('id',float)]
+        reps.dtype = [('time_rep', float), ('id', float)]
         max_offline = '<NA>'
         if reqs.size > 0:
             res = rf.join_by('id', reps, reqs, jointype='outer')
@@ -291,9 +293,9 @@ class ConnectivityMonitor(Monitor):
                 while i < res.size and res.mask['time_rep'][i]:
                     i += 1
                 if i < res.size:
-                    current_offline = res.data['time_rep'][i] - last_sent
+                    current_offline = res.data['time_rep'][i]-last_sent
                 else:
-                    current_offline = res.data['time_req'][i-1] - last_sent
+                    current_offline = res.data['time_req'][i-1]-last_sent
                 #Online window:
                 while i < res.size and not res.mask['time_rep'][i]:
                     last_sent = res.data['time_req'][i]
@@ -303,6 +305,6 @@ class ConnectivityMonitor(Monitor):
                     current_offline += 1
         # Format data:
         data = dict()
-        headers = [ 'Filename', 'Requests', 'Replies', 'Lost', 'Max_offline']
-        values = [ self.filename, summary[0], summary[1], summary[2], max_offline]
-        return dict(zip(headers,values))
+        headers = ['Filename', 'Requests', 'Replies', 'Lost', 'Max_offline']
+        values = [self.filename, summary[0], summary[1], summary[2], max_offline]
+        return dict(zip(headers, values))

@@ -1,4 +1,5 @@
 import copy
+import logging
 import threading
 from datetime import timedelta,datetime
 from heapq import heappop
@@ -120,34 +121,33 @@ class MLCEnvironment(Environment):
         experiment.actions.sort()
         start = now = datetime.now()
         for action in experiment.actions:
-            if now < start + action.at:
-                sleep((start + action.at-now).total_seconds())
+            if now < start+action.at:
+                sleep((start+action.at-now).total_seconds())
             self._process_action(action, action.at)
             now = datetime.now()
         experiment.done()
     
     def _process_action(self, action, now):
         if action.kind == BOOT:
-            print('booting nodes %s' % action.target)
+            logging.debug('Booting nodes %s', action.target)
             self._start_nodes(action.target)
         elif action.kind == HALT:
-            print('halting nodes %s' % action.target)
+            logging.debug('Halting nodes %s', action.target)
             self._stop_nodes(action.target)
         elif action.kind == EXEC:
-            print('executing %s' % action.get_command())
+            logging.debug('Executing %s', action.get_command())
             self._execute(action)
         elif action.kind == MON:
             for monitor in action.monitors:
-                print('runing monitor %s' % monitor.__class__)
+                logging.debug('Runing monitor %s', monitor.__class__)
                 self.monitors.append(monitor)
                 monitor.action = None
                 monitor.start(self)
         elif action.kind == STOP:
-            print('stopping experiment')
+            logging.debug('Stopping experiment')
             for monitor in self.monitors:
-                print('stoping monitor %s' % monitor.__class__)
+                logging.debug('Stoping monitor %s', monitor.__class__)
                 monitor.stop()
-            print('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'])
             run('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'], async=False)
         elif action.kind == START:
             self.change_links(now)
@@ -185,15 +185,14 @@ class MLCEnvironment(Environment):
         #Stablish links
         t = self.experiment.topology
         for link in t.es():
-            self._set_link(link.source,link.target)
+            self._set_link(link.source, link.target)
     
     def _stop_nodes(self, nodes):
-        print('STOPPING NODES')
+        logging.debug('Stopping nodes')
         if not isiterable(nodes):
             nodes = [nodes]
         for node in nodes:
             n = self.experiment.topology.vs[node]
-            print('mlc_loop --min %i -s' % n['MLC_id'])
             run('mlc_loop --min %i -s' % n['MLC_id'])
             run('lxc-wait -n mlc%i -s STOPPED' % n['MLC_id'])
             n['up'] = DOWN

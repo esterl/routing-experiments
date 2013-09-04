@@ -8,6 +8,14 @@ from experiments import Action, Experiment
 from networkgraphs import *
 import functools
 import random
+import logging
+
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)s: %(message)s',
+    datefmt='%m/%d/%Y %I:%M:%S %p',
+    level=logging.INFO)
+
 
 Action.load_config('/home/ester/PhD/mlc/MLCExperiment/cmd.conf')
 

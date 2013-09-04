@@ -1,5 +1,6 @@
-import itertools
 import copy
+import itertools
+import logging
 import os.path
 
 from configparser import ConfigParser, NoOptionError
@@ -40,13 +41,13 @@ class Action(object):
         self.target = target
         self._command = _command
         self.pid = None
-        self.monitors=monitors
+        self.monitors = monitors
     
     def __eq__(self, other):
         return self._id == other._id
     
     def __lt__(self, other):
-        return ((self.at, self._id) < (other.at, other._id))
+        return (self.at, self._id) < (other.at, other._id)
     
     @staticmethod
     def load_config(filename):
@@ -69,7 +70,7 @@ class Action(object):
     
     def modify(self, new_command):
         if self.kind != EXEC:
-            print('Only execute actions can be changed')
+            logging.error('Only execute actions can be changed')
         else:
             self._command = new_command
 
@@ -165,15 +166,15 @@ class Experiment(object):
         for action in self.actions:
             for monitor in action.monitors:
                 global_data = monitor.get_global_data()
-                print('monitor class %s' % monitor.__class__)
-                print(global_data)
+                logging.info('monitor class %s', monitor.__class__)
+                logging.info(global_data)
                 if global_data:
                     for key,value in global_data.items():
                         self.global_data[key] = str(value)
                 target_data = monitor.get_target_data()
-                print(target_data)
-                print(monitor.__class__)
-                print(target_data)
+                logging.info(target_data)
+                logging.info(monitor.__class__)
+                logging.info(target_data)
                 if not isinstance(target_data,list):
                     target_data = [target_data]
                 for t_d in target_data:
@@ -197,8 +198,8 @@ class Experiment(object):
         # Target data
         # Get all the headers:
         headers = set()
-        print('target_data')
-        print(self.target_data)
+        logging.info('target_data')
+        logging.info(self.target_data)
         for target_dict in self.target_data.values():
             headers |= target_dict.keys()
         with open(target_filename, 'w') as f:
@@ -206,7 +207,7 @@ class Experiment(object):
             f.write('","'.join(headers))
             f.write('"\n')
             for (target, target_dict) in self.target_data.items():
-                data = [ str(target) ]
+                data = [str(target)]
                 data += [ str(target_dict.get(key, '<NA>')) for key in headers ]
                 f.write('"')
                 f.write('","'.join(data))
