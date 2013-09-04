@@ -8,6 +8,14 @@ from experiments import Action, Experiment
 from networkgraphs import *
 import functools
 import random
+import logging
+
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)s: %(message)s',
+    datefmt='m/%d/%Y %I:%M:%S %p',
+    level=logging.INFO)
+
 
 Action.load_config('/home/ester/PhD/mlc/MLCExperiment/cmd.conf')
 
@@ -75,17 +83,17 @@ for i in range(repetitions):
         net.add_interval(delta(minutes=10), delta(minutes=30), tag='steady')
         e.monitor(at=delta(0), monitors=[net])
         e.stop(delay=delta(seconds=experiment_length))
-        print(e)
+        logging.info(e)
         env.run_experiment(e)
         # Run OLSR:
         e.set_name('/tmp/experiment_%s%i_olsr' % (graph['name'],i))
         e.modify_command(routing, 'OLSR')
-        print(e)
+        logging.info(e)
         env.run_experiment(e)
         # Run Babel:
         e.set_name('/tmp/experiment_%s%i_babel' % (graph['name'],i))
         e.modify_command(routing, 'Babel')
-        print(e)
+        logging.info(e)
         env.run_experiment(e)
 
 

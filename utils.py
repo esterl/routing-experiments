@@ -1,11 +1,12 @@
 # Class SSHClient is an adaptation of niwibe SSHClient, it can be found at: 
 # https://gist.github.com/niwibe/2431088/
+import collections
 import fcntl
 import functools
+import logging
 import select
 import os
 import subprocess
-import collections
 
 
 def isiterable(obj):
@@ -104,7 +105,7 @@ class SSHClient(object):
         self.proc.terminate()
     
     def execute_background(self, command):
-        print('EXECUTE background %s' % command)
+        logging.debug('Execute background %s', command)
         #Run in background:
         if command[-1] != '&':
             command = command + '&'
@@ -121,14 +122,14 @@ class SSHClient(object):
         return
     
     def execute_foreground(self, command):
-        print('EXECUTE foreground %s' % command)
+        logging.debug('Execute foreground %s', command)
         #get bash pid:
         self.stdout += self._read(self.proc.stdout)
         self.write('echo $$')
         try:
             self.pid = int(self.proc.stdout.readline())
         except ValueError:
-            print('ValueError @ execute_foreground')
+            logging.debug('ValueError @ execute_foreground')
         #run command:
         self.write(command)
         return
@@ -143,7 +144,7 @@ class SSHClient(object):
 def run(cmd, mlc=True, async=True):
     if mlc:
         cmd = 'cd /home/ester/PhD/mlc; . ./mlc-vars.sh; %s' % cmd
-    print('\033[1m$ %s \033[0m' % cmd)
+    logging.debug('\033[1m$ %s \033[0m', cmd)
     p = popen(cmd, executable='/bin/bash', shell=True)
     if not async:
         p.wait()
@@ -151,7 +152,7 @@ def run(cmd, mlc=True, async=True):
 
 
 def ssh(addr, cmd):
-    print('\033[1mssh@%s$ %s \033[0m' % (addr, cmd))
+    logging.debug('\033[1mssh@%s$ %s \033[0m', (addr, cmd))
     client = SSHClient(addr)
     client.start()
     client.execute(cmd)

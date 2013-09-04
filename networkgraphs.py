@@ -1,4 +1,5 @@
 import igraph
+import logging
 import random
 import xml.etree.ElementTree as ET
 import urllib.request
@@ -9,7 +10,6 @@ from datetime import timedelta as delta
 # - Get max distance
 
 class NetworkGraph(igraph.Graph):
-
     @classmethod
     def from_cnml(cls, area):
         """
@@ -65,8 +65,8 @@ class NetworkGraph(igraph.Graph):
         # We only consider links that won't partition the graph
         time = time_wait() if callable(time_wait) else time_wait
         changes = []
-        aux = self.copy()
-        links = list(set(aux.es).difference(aux.bridges()))
+        graph = self.copy()
+        links = list(set(graph.es).difference(graph.bridges()))
         off_links = []
         while time < duration:
             # Randomly choose a link
@@ -74,23 +74,24 @@ class NetworkGraph(igraph.Graph):
             next = time_wait() if callable(time_wait) else time_wait
             if links:
                 link = Link(random.choice(links))
-                changes.append((time,link,0))
+                changes.append((time, link, 0))
                 # And disable it
-                heappush(off_links,(off, link))
+                heappush(off_links, (off,link))
                 link.delete()
-            time = next + time if simultaneous else next + off
+            time = next+time if simultaneous else next+off
             # Enable links that should be on again
             while off_links and off_links[0][0] < time:
                 (on_time,link) = heappop(off_links)
                 if on_time < duration:
-                    changes.append((on_time,link,link.quality))
-                    aux.add_edge(link.src, link.dst, quality=link.quality)
-            if simultaneous: links = list(set(aux.es).difference(aux.bridges()))
+                    changes.append((on_time, link, link.quality))
+                    graph.add_edge(link.src, link.dst, quality=link.quality)
+            if simultaneous:
+                links = list(set(graph.es).difference(graph.bridges()))
         # Set graph 'link_changes' = timedelta, src, dst, quality
         self['link_changes'] = []
         current = 0
-        for (time,link,quality) in changes:
-            change = ( delta(seconds=time-current), link.src, link.dst, quality)
+        for (time, link, quality) in changes:
+            change = (delta(seconds=time-current), link.src, link.dst, quality)
             self['link_changes'].append(change)
             current = time
     
@@ -117,7 +118,7 @@ class NetworkGraph(igraph.Graph):
                     if neighbor['higher'] > higher:
                         higher = neighbor['higher']
                     if (neighbor['lower'] == neighbor['num'] and
-                        neighbor['higher'] < neighbor['num'] + neighbor['descendants']):
+                            neighbor['higher'] < neighbor['num']+neighbor['descendants']):
                         edge = graph.get_eid(node.index,neighbor.index)
                         bridges.append(graph.es[edge])
                     descendants += neighbor['descendants']
@@ -151,18 +152,18 @@ class NetworkGraph(igraph.Graph):
             edge['quality'] = quality() if callable(quality) else quality
     
     def save(self, filename, format='graphml'):
-        #Save link_changes
-        if format !='pickle':
+        # Save link_changes
+        if format != 'pickle':
             try:
                 changes = self['link_changes']
                 with open('%s_changes' % filename, 'w') as f:
                     for ( time, src, dst, q ) in changes:
-                        f.write('%f %i %i %i\n' % ( time.total_seconds(), src, dst, q))
+                        f.write('%f %i %i %i\n' % (time.total_seconds(), src, dst, q))
             except KeyError:
                 pass
-        print(self)
-        print(filename)
-        print(format)
+        logging.info(self)
+        logging.info(filename)
+        logging.info(format)
         super(NetworkGraph, self).save(filename, format)
     
     def get_longest_path(self):
@@ -176,4 +177,4 @@ class NetworkGraph(igraph.Graph):
                     max_d = distance
                     max_src = src
                     max_dst = dst
-        return (max_src,max_dst)
+        return (max_src, max_dst)
