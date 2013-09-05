@@ -135,9 +135,9 @@ class NetworkMonitor(Monitor):
         target = self.target
         if target is not 'experiment':
             if not self.incoming and self.outgoing:
-                filters.append('(ether dst %s)' % (environment.get_mac(target)))
+                filters.append('(ether src %s)' % (self.env.get_mac(target)))
             if not self.outgoing and self.incoming:
-                filters.append('(ether src %s)' % (environment.get_mac(target)))
+                filters.append('(ether dst %s)' % (self.env.get_mac(target)))
         if self.action:
             filter = self.action.get('network filter')
             if filter:
