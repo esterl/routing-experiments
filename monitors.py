@@ -267,15 +267,15 @@ class ConnectivityMonitor(Monitor):
         # Get longest window
         tshark = ('tshark -r %s '
                   '-T fields -e frame.time_relative -e icmpv6.echo.sequence_number '
-                  '"ipv6.addr==%s&&icmpv6.type==%i" '
+                  '"ipv6.%s==%s&&icmpv6.type==%i" '
                   '-E separator=,'
-        ) # %(filename, ip, icmpv6.type)
-        p = self.env.run_host(tshark % (self.filename, ip, 128))
+        ) # %(filename, field, ip, icmpv6.type)
+        p = self.env.run_host(tshark % (self.filename, 'dst', ip, 128))
         reqs = p.stdout.readlines()
         data = [ numpy.fromstring(line.decode().strip(), dtype=float , sep=',') for line in reqs ]
         reqs = numpy.vstack(data) if data else numpy.array([[]])
         reqs.dtype = [('time_req',float),('id',float)]
-        p = self.env.run_host(tshark % (self.filename, ip, 129))
+        p = self.env.run_host(tshark % (self.filename, 'src', ip, 129))
         reps = p.stdout.readlines()
         data = [ numpy.fromstring(line.decode().strip(), dtype=float, sep=',') for line in reps ]
         reps = numpy.vstack(data) if data else numpy.array([[]])
@@ -302,7 +302,6 @@ class ConnectivityMonitor(Monitor):
                     i += 1
                 if current_offline > max_offline:
                     max_offline = current_offline
-                    current_offline += 1
         # Format data:
         data = dict()
         headers = ['Filename', 'Requests', 'Replies', 'Lost', 'Max_offline']
