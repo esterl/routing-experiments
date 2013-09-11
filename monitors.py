@@ -112,7 +112,7 @@ class NetworkMonitor(Monitor):
             ) % (filters, filters, filters, filters, self.filename)
             p = self.env.run_host(tshark)
             stats = p.stdout.readline().decode()
-            stats = stats.split()
+            stats = stats.split("|")
             duration = float(stats[2]) - float(stats[1])
             stats = [
                 self.filename,
