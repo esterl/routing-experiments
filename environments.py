@@ -5,7 +5,7 @@ from datetime import timedelta,datetime
 from heapq import heappop
 from time import sleep
 
-from utils import ssh, run, isiterable
+from utils import ssh, run, isiterable, check_root
 
 
 """ Status """
@@ -44,6 +44,7 @@ class MLCEnvironment(Environment):
     monitors = []
     
     def prepare(self):
+        check_root()
         run('./mlc-init-host.sh > /dev/null', async=False)
     
     def prepare_topology(self, topology):
@@ -255,4 +256,5 @@ class MLCEnvironment(Environment):
         if 'link_changes' in self.experiment.topology.attributes():
             link_changes = self.experiment.topology['link_changes']
             thread = threading.Thread(target=_change_links, args=(link_changes, now))
+            thread.daemon = True
             thread.start()

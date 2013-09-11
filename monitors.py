@@ -276,6 +276,7 @@ class ConnectivityMonitor(Monitor):
         reqs = numpy.vstack(data) if data else numpy.array([[]])
         reqs.dtype = [('time_req',float),('id',float)]
         p = self.env.run_host(tshark % (self.filename, 'src', ip, 129))
+        print(tshark)
         reps = p.stdout.readlines()
         data = [ numpy.fromstring(line.decode().strip(), dtype=float, sep=',') for line in reps ]
         reps = numpy.vstack(data) if data else numpy.array([[]])

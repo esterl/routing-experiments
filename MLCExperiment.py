@@ -17,7 +17,7 @@ logging.basicConfig(
     level=logging.INFO)
 
 
-Action.load_config('/home/ester/PhD/mlc/MLCExperiment/cmd.conf')
+Action.load_config('%s/cmd.conf' % utils.get_module_path())
 
 # 4 Variables: graph type, link change frequency, link quality, network size.
 # Results in 16 different experiments.

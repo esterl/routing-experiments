@@ -6,8 +6,10 @@ import functools
 import logging
 import select
 import os
+import os.path
 import subprocess
 
+MLC_PATH = ''
 
 def isiterable(obj):
     return isinstance(obj, collections.Iterable)
@@ -16,6 +18,12 @@ def isiterable(obj):
 popen = functools.partial(subprocess.Popen, stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+class PermisionDenied(Exception):
+    """ Raised when no root priviledges"""
+
+def check_root():
+    if os.geteuid() != 0:
+        raise PermissionDenied("Root permission required to run MLC")
 
 class SSHClient(object):
     shell = "/bin/sh"
@@ -140,10 +148,17 @@ class SSHClient(object):
         else:
             self.execute_foreground(command)
 
+def get_default_mlc_path():
+    current_path = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(current_path, '..')
+
+def get_module_path():
+    return os.path.abspath(os.path.dirname(__file__))
 
 def run(cmd, mlc=True, async=True):
     if mlc:
-        cmd = 'cd /home/ester/PhD/mlc; . ./mlc-vars.sh; %s' % cmd
+        mlc_path = MLC_PATH or get_default_mlc_path()
+        cmd = 'cd %s; . ./mlc-vars.sh; %s' % (mlc_path,cmd)
     logging.debug('\033[1m$ %s \033[0m', cmd)
     p = popen(cmd, executable='/bin/bash', shell=True)
     if not async:
