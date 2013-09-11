@@ -166,15 +166,10 @@ class Experiment(object):
         for action in self.actions:
             for monitor in action.monitors:
                 global_data = monitor.get_global_data()
-                logging.info('monitor class %s', monitor.__class__)
-                logging.info(global_data)
                 if global_data:
                     for key,value in global_data.items():
                         self.global_data[key] = str(value)
                 target_data = monitor.get_target_data()
-                logging.info(target_data)
-                logging.info(monitor.__class__)
-                logging.info(target_data)
                 if not isinstance(target_data,list):
                     target_data = [target_data]
                 for t_d in target_data:
@@ -198,8 +193,6 @@ class Experiment(object):
         # Target data
         # Get all the headers:
         headers = set()
-        logging.info('target_data')
-        logging.info(self.target_data)
         for target_dict in self.target_data.values():
             headers |= target_dict.keys()
         with open(target_filename, 'w') as f:
