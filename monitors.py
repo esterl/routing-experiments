@@ -201,7 +201,7 @@ class CPUMonitor(Monitor):
     
     def stop(self):
         thread = self.env.run_node(self.target, 'kill -s 2 %s' % self.pid)
-        thread.execute('cat /tmp/perf')
+        thread.execute('cat /tmp/%s' % self.basename)
         output = thread.get_stdout().split('\n')
         output = [ line.split(',') for line in output if line != '']
         self.data = dict()
