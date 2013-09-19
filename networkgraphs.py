@@ -153,6 +153,7 @@ class NetworkGraph(igraph.Graph):
     
     def save(self, filename, format='graphml'):
         # Save link_changes
+        self.vs['node_id'] = self.vs.indices
         if format != 'pickle':
             try:
                 changes = self['link_changes']

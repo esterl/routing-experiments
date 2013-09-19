@@ -3,7 +3,7 @@ import numpy
 import numpy.lib.recfunctions as rf
 import os.path
 from datetime import datetime, timedelta
-
+import warnings
 
 class Monitor(object):
     basename = ''
@@ -112,15 +112,32 @@ class NetworkMonitor(Monitor):
             ) % (filters, filters, filters, filters, self.filename)
             p = self.env.run_host(tshark)
             stats = p.stdout.readline().decode()
-            stats = stats.split("|")
-            duration = float(stats[2]) - float(stats[1])
-            stats = [
-                self.filename,
-                stats[3],
-                stats[4],
-                float(stats[4])/duration if duration != 0 else '<NA>',
-                float(stats[3])/duration if duration != 0 else '<NA>'
-            ]
+            p = self.env.run_host('tshark -v|head -2|cut -f2 -d" "')
+            version = p.stdout.readline().decode().strip('\n')
+            print(version)
+            if version == '1.8.2':
+                stats = stats.split('|')
+                duration = float(stats[3]) - float(stats[2])
+                stats = [
+                    self.filename,
+                    stats[4],
+                    stats[5],
+                    float(stats[5])/duration if duration != 0 else '<NA>',
+                    float(stats[4])/duration if duration != 0 else '<NA>'
+                ]
+            elif version == '1.6.7':
+                stats = stats.split(' ')
+                duration = float(stats[2]) - float(stats[1])
+                stats = [
+                    self.filename,
+                    stats[3],
+                    stats[4],
+                    float(stats[4])/duration if duration != 0 else '<NA>',
+                    float(stats[3])/duration if duration != 0 else '<NA>'
+                ]
+            else:
+                warnings.warn('Unknown tshark version: %s' % version)
+                stats = [ self.filename, '<NA>', '<NA>', '<NA>', '<NA>']
         return dict(zip(headers, stats))
             
     def get_interface(self):

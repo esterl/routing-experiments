@@ -30,8 +30,11 @@ class Action(object):
     _counter = itertools.count()
     
     def __str__(self):
-        node = "%s@" % self._command if self.kind == EXEC else ''
-        result = "[%s]%s %s%s" % (self.at, self.kind, node, self.target)
+        node = '%s@' % self._command if self.kind == EXEC else ''
+        result = '[%s]%s %s%s' % (self.at, self.kind, node, self.target)
+        if self.monitors:
+            monitors = [monitor.basename for monitor in self.monitors]
+            result += '(Monitors: %s)' % ', '.join(monitors)
         return result
     
     def __init__(self, kind, at, target, _command="", monitors=[]):
@@ -121,9 +124,9 @@ class Experiment(object):
         if not isiterable(monitors):
             monitors = [monitors]
         for monitor in monitors:
-            monitor.set_filename(self.path, self.name)
-            if target and not isiterable(target):
+            if target is not None and not isiterable(target):
                 monitor.add_tag(str(target))
+            monitor.set_filename(self.path, self.name)
             monitor.target = target
         if target is None:
             target = self.topology.vs.indices
