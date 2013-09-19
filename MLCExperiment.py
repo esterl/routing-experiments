@@ -9,7 +9,7 @@ from networkgraphs import *
 import functools
 import random
 import logging
-
+import utils
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s',
