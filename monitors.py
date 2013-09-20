@@ -126,7 +126,7 @@ class NetworkMonitor(Monitor):
                     float(stats[4])/duration if duration != 0 else '<NA>'
                 ]
             elif version == '1.6.7':
-                stats = stats.split(' ')
+                stats = stats.split()
                 duration = float(stats[2]) - float(stats[1])
                 stats = [
                     self.filename,
@@ -253,7 +253,8 @@ class ConnectivityMonitor(Monitor):
             thread.stop()
         # Monitor with tcpdump
         iface = environment.get_interface(self.src, self.iface)
-        tcpdump = 'tcpdump -i %s -w %s -s 0 icmp6' % (iface, self.filename)
+        # TODO fix so only icmp6 traffic is captured
+        tcpdump = 'tcpdump -i %s -w %s -s 0' % (iface, self.filename)
         self.thread = environment.run_host(tcpdump)
     
     def stop(self):
