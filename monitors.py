@@ -254,7 +254,7 @@ class ConnectivityMonitor(Monitor):
         # Monitor with tcpdump
         iface = environment.get_interface(self.src, self.iface)
         # TODO fix so only icmp6 traffic is captured
-        tcpdump = 'tcpdump -i %s -w %s -s 0' % (iface, self.filename)
+        tcpdump = 'tcpdump -i %s -w %s -s 0 "icmp6 or (vlan and icmp6)"' % (iface, self.filename)
         self.thread = environment.run_host(tcpdump)
     
     def stop(self):
@@ -269,11 +269,11 @@ class ConnectivityMonitor(Monitor):
             self.data = []
             for i in range(len(self.dst_ips)):
                 target = (self.src, self.dsts[i])
-                data = self._get_data(self.dst_ips[i])
+                data = self._get_data(self.dst_ips[i], self.dsts[i])
                 self.data.append((target,data))
         return self.data
     
-    def _get_data(self, ip):
+    def _get_data(self, ip, dst):
         # Read summary
         tshark = ('tshark -r %s '
               '-q -z icmpv6,srt,'
@@ -300,6 +300,7 @@ class ConnectivityMonitor(Monitor):
         reps = numpy.vstack(data) if data else numpy.array([[]])
         reps.dtype = [('time_rep', float), ('id', float)]
         max_offline = '<NA>'
+        filename = self.filename
         if reqs.size > 0:
             res = rf.join_by('id', reps, reqs, jointype='outer')
             # Find largest "True"
@@ -321,8 +322,11 @@ class ConnectivityMonitor(Monitor):
                     i += 1
                 if current_offline > max_offline:
                     max_offline = current_offline
+            # Save matrix:
+            filename = '%s_%s' % (filename, dst)
+            numpy.savetxt(filename, res.filled(-1))
         # Format data:
         data = dict()
         headers = ['Filename', 'Requests', 'Replies', 'Lost', 'Max_offline']
-        values = [self.filename, summary[0], summary[1], summary[2], max_offline]
+        values = [filename, summary[0], summary[1], summary[2], max_offline]
         return dict(zip(headers, values))
