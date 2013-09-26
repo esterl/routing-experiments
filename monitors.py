@@ -127,6 +127,7 @@ class NetworkMonitor(Monitor):
                 ]
             elif version == '1.6.7':
                 stats = stats.split()
+                print(stats)
                 duration = float(stats[2]) - float(stats[1])
                 stats = [
                     self.filename,
@@ -188,7 +189,12 @@ class MemoryMonitor(Monitor):
             if line and len(line.split())==3:
                 data.append(numpy.fromstring(line, dtype=int, sep='K'))
         if data:
-            data = numpy.vstack(data)
+            try:
+                data = numpy.vstack(data)
+            except ValueError:
+                import pickle
+                pickle.dupm( data, open("/tmp/failed_data" , "wb"))
+                raise ValueError
             # Compute average:
             mean = data.mean(axis=0).tolist()
         else:
