@@ -193,7 +193,7 @@ class MemoryMonitor(Monitor):
                 data = numpy.vstack(data)
             except ValueError:
                 import pickle
-                pickle.dupm( data, open("/tmp/failed_data" , "wb"))
+                pickle.dump( data, open('/tmp/failed_data' , 'wb'))
                 raise ValueError
             # Compute average:
             mean = data.mean(axis=0).tolist()
