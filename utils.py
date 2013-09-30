@@ -15,6 +15,7 @@ def isiterable(obj):
     return isinstance(obj, collections.Iterable)
 
 
+#TODO fix, so that stdin / stdout/
 popen = functools.partial(subprocess.Popen, stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
