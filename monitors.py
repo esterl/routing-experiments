@@ -227,10 +227,10 @@ class CPUMonitor(Monitor):
         thread = self.env.run_node(self.target, 'kill -s 2 %s' % self.pid)
         thread.execute('cat /tmp/%s' % self.basename)
         output = thread.get_stdout()
+        self.data = dict()
         if output.startswith("Problems"):
             return
         output = [ line.split(',') for line in output.split('\n') if line != '']
-        self.data = dict()
         for line in output:
             self.data[line[1]] = line[0]
         thread.stop()
