@@ -15,6 +15,7 @@ def isiterable(obj):
     return isinstance(obj, collections.Iterable)
 
 
+#TODO fix, so that stdin / stdout/
 popen = functools.partial(subprocess.Popen, stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -108,9 +109,12 @@ class SSHClient(object):
         if self.stopped:
             raise Exception("Already stopped")
         self.get_stderr()
+        self.proc.stderr.close()
         self.get_stdout()
+        self.proc.stdout.close()
         self.stopped = True
         self.proc.terminate()
+        self.proc.stdin.close()
     
     def execute_background(self, command):
         logging.debug('Execute background %s', command)

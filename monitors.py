@@ -56,6 +56,7 @@ class NetworkMonitor(Monitor):
     def stop(self):
         # Kill tcpdump
         self.thread.terminate()
+        self.thread.communicate()
     
     def add_interval(self,start,end,tag):
         self.intervals.append((tag,(start,end)))
@@ -88,7 +89,8 @@ class NetworkMonitor(Monitor):
         if interval is None:
             capinfos = "capinfos -cdTmxyr %s" % self.filename
             p = self.env.run_host(capinfos)
-            stats = p.stdout.readline().decode()
+            (stdout, stderr) = p.communicate()
+            stats = stdout.decode()
             stats = stats.strip().split(',')
         else:
             (start, end) = interval
@@ -111,10 +113,11 @@ class NetworkMonitor(Monitor):
                 ' -r %s |tail -n2 |head -n1'
             ) % (filters, filters, filters, filters, self.filename)
             p = self.env.run_host(tshark)
-            stats = p.stdout.readline().decode()
+            (stdout,stderr) = p.communicate()
+            stats = stdout.decode()
             p = self.env.run_host('tshark -v|head -2|cut -f2 -d" "')
-            version = p.stdout.readline().decode().strip('\n')
-            print(version)
+            (stdout,stderr) = p.communicate()
+            version = stdout.decode().strip('\n')
             if version == '1.8.2':
                 stats = stats.split('|')
                 duration = float(stats[3]) - float(stats[2])
@@ -269,6 +272,7 @@ class ConnectivityMonitor(Monitor):
     def stop(self):
         # Kill tcpdump
         self.thread.terminate()
+        self.thread.communicate()
         # Kill pings:
         thread = self.env.run_node(self.src, 'killall ping6')
         thread.stop()
@@ -290,7 +294,8 @@ class ConnectivityMonitor(Monitor):
               '|tail -n5|head -n1'
             ) % (self.filename, ip)
         p = self.env.run_host(tshark)
-        summary = p.stdout.readline().decode().split()
+        (stdout, stderr) = p.communicate()
+        summary = stdout.decode().split()
         # Get longest window
         tshark = ('tshark -r %s '
                   '-T fields -e frame.time_relative -e icmpv6.echo.sequence_number '
@@ -298,14 +303,15 @@ class ConnectivityMonitor(Monitor):
                   '-E separator=,'
         ) # %(filename, field, ip, icmpv6.type)
         p = self.env.run_host(tshark % (self.filename, 'dst', ip, 128))
-        reqs = p.stdout.readlines()
-        data = [ numpy.fromstring(line.decode().strip(), dtype=float , sep=',') for line in reqs ]
+        (stdout, stderr) = p.communicate()
+        reqs = stdout.decode().strip().split('\n')
+        data = [ numpy.fromstring(line.strip(), dtype=float, sep=',') for line in reqs ]
         reqs = numpy.vstack(data) if data else numpy.array([[]])
         reqs.dtype = [('time_req',float),('id',float)]
         p = self.env.run_host(tshark % (self.filename, 'src', ip, 129))
-        print(tshark)
-        reps = p.stdout.readlines()
-        data = [ numpy.fromstring(line.decode().strip(), dtype=float, sep=',') for line in reps ]
+        (stdout, stderr) = p.communicate()
+        reps = stdout.decode().strip().split('\n')
+        data = [ numpy.fromstring(line.strip(), dtype=float, sep=',') for line in reps ]
         reps = numpy.vstack(data) if data else numpy.array([[]])
         reps.dtype = [('time_rep', float), ('id', float)]
         max_offline = '<NA>'
