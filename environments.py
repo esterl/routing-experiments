@@ -116,6 +116,7 @@ class MLCEnvironment(Environment):
         return thread
     
     def run_experiment(self,experiment):
+        self.monitors = []
         self.experiment = experiment
         self.prepare_topology(experiment.topology)
         # Go action by action:
