@@ -304,13 +304,13 @@ class ConnectivityMonitor(Monitor):
         ) # %(filename, field, ip, icmpv6.type)
         p = self.env.run_host(tshark % (self.filename, 'dst', ip, 128))
         (stdout, stderr) = p.communicate()
-        reqs = stdout.decode().strip().split('\n')
+        reqs = stdout.decode().strip().split('\n') if stdout else []
         data = [ numpy.fromstring(line.strip(), dtype=float, sep=',') for line in reqs ]
         reqs = numpy.vstack(data) if data else numpy.array([[]])
         reqs.dtype = [('time_req',float),('id',float)]
         p = self.env.run_host(tshark % (self.filename, 'src', ip, 129))
         (stdout, stderr) = p.communicate()
-        reps = stdout.decode().strip().split('\n')
+        reps = stdout.decode().strip().split('\n') if stdout else []
         data = [ numpy.fromstring(line.strip(), dtype=float, sep=',') for line in reps ]
         reps = numpy.vstack(data) if data else numpy.array([[]])
         reps.dtype = [('time_rep', float), ('id', float)]
