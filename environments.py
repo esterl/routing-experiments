@@ -152,7 +152,11 @@ class MLCEnvironment(Environment):
                 monitor.stop()
             run('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'], async=False)
         elif action.kind == START:
+            end = self._get_end()
             self.change_links(now)
+    
+    def _get_end(self):
+        return self.experiment.actions[-1].at if self.experiment.actions else None
     
     def _set_link(self, src, dst, tx_q=None, rx_q=None):
         t = self.experiment.topology
@@ -247,9 +251,11 @@ class MLCEnvironment(Environment):
         #Start monitors:
     
     # TODO check if we really need "now"
-    def change_links(self, now):
-        def _change_links(link_changes, now):
+    def change_links(self, now, stop=None):
+        def _change_links(link_changes, now, stop):
             for (at, src, dst, weight) in link_changes:
+                if stop and now > stop:
+                    break
                 if now < at:
                     sleep(at.total_seconds()-now.total_seconds())
                 now = at
