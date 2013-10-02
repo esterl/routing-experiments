@@ -153,7 +153,7 @@ class MLCEnvironment(Environment):
             run('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'], async=False)
         elif action.kind == START:
             end = self._get_end()
-            self.change_links(now)
+            self.change_links(now,end)
     
     def _get_end(self):
         return self.experiment.actions[-1].at if self.experiment.actions else None
@@ -253,6 +253,6 @@ class MLCEnvironment(Environment):
                 self._set_link(src, dst, tx_q=weight)
         if 'link_changes' in self.experiment.topology.attributes():
             link_changes = self.experiment.topology['link_changes']
-            thread = threading.Thread(target=_change_links, args=(link_changes, now))
+            thread = threading.Thread(target=_change_links, args=(link_changes, now, stop))
             thread.daemon = True
             thread.start()
