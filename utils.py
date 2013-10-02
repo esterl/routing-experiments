@@ -141,7 +141,7 @@ class SSHClient(object):
         try:
             self.pid = int(self.proc.stdout.readline())
         except ValueError as e:
-            logging.debug('ValueError @ execute_foreground: %s' % e.strerr)
+            logging.debug('ValueError @ execute_foreground: %s' % e)
         #run command:
         self.write(command)
         return
