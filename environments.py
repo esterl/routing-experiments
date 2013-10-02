@@ -224,6 +224,12 @@ class MLCEnvironment(Environment):
             #Update read:
             thread.get_stdout()
             thread.execute(action.get_pid_cmd())
+            try: action.pid = int(thread.proc.stdout.readline())
+            except ValueError:
+                thread.execute('ps aux')
+                print(thread.proc.stdout.readlines())
+            thread.get_stdout()
+            thread.execute(action.get_pid_cmd())
             action.pid = int(thread.proc.stdout.readline())
             # Monitors need to be multiplied for every command
             for monitor in action.monitors:
@@ -234,21 +240,6 @@ class MLCEnvironment(Environment):
                 aux_mon.target = target
                 aux_mon.start(self)
         action.monitors = list_mon
-        # TODO retry several times
-        #for cmd in cmds.split("\n"):
-        #    try: stdin,stdout,stderr = ssh.exec_command(action.get_command())
-        #    except paramiko.SSHException: return
-        #stdin, stdout, stderr = ssh.exec_command(action.get_pid_cmd())
-        #while True:
-        #    stdin, stdout, stderr = ssh.exec_command(action.get_pid_cmd())
-        #    try: 
-        #        action.pid = int(stdout.readline())
-        #        break
-        #    except ValueError:
-        #        pass
-        #print(action.pid)
-        
-        #Start monitors:
     
     # TODO check if we really need "now"
     def change_links(self, now, stop=None):
