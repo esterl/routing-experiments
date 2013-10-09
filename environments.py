@@ -55,6 +55,7 @@ class MLCEnvironment(Environment):
         for link in topology.es:
             if 'quality' not in link.attribute_names():
                 link['quality'] = 3
+        self.changing_topo = copy.deepcopy(topology)
     
     @staticmethod
     def _get_ip4(node, idx=False, prefix=False):
@@ -160,7 +161,7 @@ class MLCEnvironment(Environment):
         return self.experiment.actions[-1].at if self.experiment.actions else None
     
     def _set_link(self, src, dst, tx_q=None, rx_q=None):
-        t = self.experiment.topology
+        t = self.changing_topo
         # Update the topology:
         tx = t.get_eid(src,dst)
         rx = t.get_eid(dst,src)
@@ -169,8 +170,8 @@ class MLCEnvironment(Environment):
         if rx_q is not None:
             t.es[rx]['quality'] = rx_q
         # If nodes are up, modify the link
-        src_online = t.vs[src]['up'] in (BOOTING, UP)
-        dst_online = t.vs[dst]['up'] in (BOOTING, UP)
+        src_online = True #t.vs[src]['up'] in (BOOTING, UP)
+        dst_online = True #t.vs[dst]['up'] in (BOOTING, UP)
         if src_online and dst_online:
             c = {
                 'src': t.vs[src]['MLC_id'],
