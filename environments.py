@@ -244,12 +244,11 @@ class MLCEnvironment(Environment):
     # TODO check if we really need "now"
     def change_links(self, now, stop=None):
         def _change_links(link_changes, now, stop):
-            for (at, src, dst, weight) in link_changes:
+            for (wait, src, dst, weight) in link_changes:
                 if stop and now > stop:
                     break
-                if now < at:
-                    sleep(at.total_seconds()-now.total_seconds())
-                now = at
+                sleep(wait.total_seconds())
+                now = now + wait
                 self._set_link(src, dst, tx_q=weight)
         if 'link_changes' in self.experiment.topology.attributes():
             link_changes = self.experiment.topology['link_changes']
