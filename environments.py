@@ -3,7 +3,7 @@ import logging
 import threading
 from datetime import timedelta,datetime
 from heapq import heappop
-from time import sleep
+from time import sleep, time
 
 from utils import ssh, run, isiterable, check_root
 
@@ -120,14 +120,14 @@ class MLCEnvironment(Environment):
         self.experiment = experiment
         self.prepare_topology(experiment.topology)
         # Go action by action:
-        experiment.actions.sort()
+        self.experiment.actions.sort()
         start = now = datetime.now()
-        for action in experiment.actions:
+        for action in self.experiment.actions:
             if now < start+action.at:
                 sleep((start+action.at-now).total_seconds())
             self._process_action(action, action.at)
             now = datetime.now()
-        experiment.done()
+        self.experiment.done()
     
     def _process_action(self, action, now):
         if action.kind == BOOT:
@@ -153,6 +153,7 @@ class MLCEnvironment(Environment):
             run('mlc_loop --max %i -s' % self.experiment.topology['MLC_max'], async=False)
         elif action.kind == START:
             end = self._get_end()
+            self.experiment.start_time = time()
             self.change_links(now,end)
     
     def _get_end(self):
@@ -226,8 +227,7 @@ class MLCEnvironment(Environment):
             thread.execute(action.get_pid_cmd())
             try: action.pid = int(thread.proc.stdout.readline())
             except ValueError:
-                thread.execute('ps aux')
-                print(thread.proc.stdout.readlines())
+                sleep(0.1)
             thread.get_stdout()
             thread.execute(action.get_pid_cmd())
             action.pid = int(thread.proc.stdout.readline())

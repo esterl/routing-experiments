@@ -186,6 +186,7 @@ class Experiment(object):
         # Global data
         global_filename = os.path.join(self.path, self.name, '%s_global' % self.name)
         self.global_data['graph_file'] = topo_name
+        self.global_data['start_time'] = str(self.start_time)
         with open(global_filename, 'w') as f:
             f.write('"')
             f.write('","'.join(self.global_data.keys()))
