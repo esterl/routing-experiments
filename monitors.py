@@ -4,6 +4,7 @@ import numpy.lib.recfunctions as rf
 import os.path
 from datetime import datetime, timedelta
 import warnings
+import re
 
 class Monitor(object):
     basename = ''
@@ -219,7 +220,7 @@ class CPUMonitor(Monitor):
     
     def start(self, environment):
         self.env = environment
-        perf = ('perf stat -x , -e task-clock,cycles,instructions '
+        perf = ('perf stat -e task-clock,cycles,instructions '
                 '--pid %i --log-fd 2 2> /tmp/%s'
         ) % (self.action.pid, self.basename)
         thread = environment.run_node(self.target, perf, background=True)
@@ -233,10 +234,43 @@ class CPUMonitor(Monitor):
         self.data = dict()
         if output.startswith("Problems"):
             return
-        output = [ line.split(',') for line in output.split('\n') if line != '']
-        for line in output:
-            self.data[line[1]] = line[0]
-        thread.stop()
+        
+        output = [ line for line in output.split('\n') if line != '']
+        taskclock = [line for line in output if 'task-clock' in line]
+        import locale
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+        if taskclock:
+            val = re.findall('\s*([\d\.]+).*',taskclock[0])
+            if val: 
+                taskclock = str(locale.atof(val[0]))
+            else: taskclock = '<NA>'
+        else: taskclock = '<NA>'
+        cycles = [line for line in output if 'cycles' in line]
+        if cycles:
+            val = re.findall('\s*([\d\.\,]+).*',cycles[0])
+            if val: cycles = str(locale.atoi(val[0]))
+            else: cycles = '<NA>'
+        else: cycles = '<NA>'
+        instructions = [line for line in output if 'instructions' in line]
+        if instructions:
+            val = re.findall('\s*([\d\.\,]+).*',instructions[0])
+            if val: instructions = str(locale.atoi(val[0]))
+            else: instructions = '<NA>'
+        else: instructions = '<NA>'
+        duration = [line for line in output if 'seconds time elapsed' in line]
+        if duration:
+            val = re.findall('\s*([\d\.\,]+).*',duration[0])
+            if val: duration = str(locale.atof(val[0]))
+            else: duration = '<NA>'
+        else: duration = '<NA>'
+        #output = [ line.split(',') for line in output.split('\n') if line != '']
+        #for line in output:
+        #    self.data[line[1]] = line[0]
+        #thread.stop()
+        self.data['task-clock'] = taskclock
+        self.data['cycles'] = cycles
+        self.data['instructions'] = instructions
+        self.data['duration'] = duration
     
     def get_target_data(self):
         return (self.target, self.data)
@@ -254,6 +288,7 @@ class ConnectivityMonitor(Monitor):
     
     def start(self, environment):
         self.env = environment
+        self.data = None
         # Start pings from 'src' to 'dsts'
         if not isinstance(self.dsts, list):
             self.dsts = [self.dsts]
