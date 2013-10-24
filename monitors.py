@@ -4,6 +4,7 @@ import numpy.lib.recfunctions as rf
 import os.path
 from datetime import datetime, timedelta
 import warnings
+import re
 
 class Monitor(object):
     basename = ''
@@ -219,7 +220,7 @@ class CPUMonitor(Monitor):
     
     def start(self, environment):
         self.env = environment
-        perf = ('perf stat -x , -e task-clock,cycles,instructions '
+        perf = ('perf stat -e task-clock,cycles,instructions '
                 '--pid %i --log-fd 2 2> /tmp/%s'
         ) % (self.action.pid, self.basename)
         thread = environment.run_node(self.target, perf, background=True)
@@ -233,10 +234,43 @@ class CPUMonitor(Monitor):
         self.data = dict()
         if output.startswith("Problems"):
             return
-        output = [ line.split(',') for line in output.split('\n') if line != '']
-        for line in output:
-            self.data[line[1]] = line[0]
-        thread.stop()
+        
+        output = [ line for line in output.split('\n') if line != '']
+        taskclock = [line for line in output if 'task-clock' in line]
+        import locale
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+        if taskclock:
+            val = re.findall('\s*([\d\.]+).*',taskclock[0])
+            if val: 
+                taskclock = str(locale.atof(val[0]))
+            else: taskclock = '<NA>'
+        else: taskclock = '<NA>'
+        cycles = [line for line in output if 'cycles' in line]
+        if cycles:
+            val = re.findall('\s*([\d\.\,]+).*',cycles[0])
+            if val: cycles = str(locale.atoi(val[0]))
+            else: cycles = '<NA>'
+        else: cycles = '<NA>'
+        instructions = [line for line in output if 'instructions' in line]
+        if instructions:
+            val = re.findall('\s*([\d\.\,]+).*',instructions[0])
+            if val: instructions = str(locale.atoi(val[0]))
+            else: instructions = '<NA>'
+        else: instructions = '<NA>'
+        duration = [line for line in output if 'seconds time elapsed' in line]
+        if duration:
+            val = re.findall('\s*([\d\.\,]+).*',duration[0])
+            if val: duration = str(locale.atof(val[0]))
+            else: duration = '<NA>'
+        else: duration = '<NA>'
+        #output = [ line.split(',') for line in output.split('\n') if line != '']
+        #for line in output:
+        #    self.data[line[1]] = line[0]
+        #thread.stop()
+        self.data['task-clock'] = taskclock
+        self.data['cycles'] = cycles
+        self.data['instructions'] = instructions
+        self.data['duration'] = duration
     
     def get_target_data(self):
         return (self.target, self.data)
@@ -254,13 +288,14 @@ class ConnectivityMonitor(Monitor):
     
     def start(self, environment):
         self.env = environment
+        self.data = None
         # Start pings from 'src' to 'dsts'
         if not isinstance(self.dsts, list):
             self.dsts = [self.dsts]
         # TODO same ssh connection for all pings
         self.dst_ips = [ environment.get_ip6(dst, self.iface, self.vlan) for dst in self.dsts ]
         for ip in self.dst_ips:
-            ping = 'ping6 -q -n -i 0.1 %s' % ip
+            ping = 'ping6 -q -n -i 0.1 %s -W 2000' % ip
             thread = environment.run_node(self.src, ping, background=True)
             thread.stop()
         # Monitor with tcpdump
@@ -299,7 +334,7 @@ class ConnectivityMonitor(Monitor):
         # Get longest window
         tshark = ('tshark -r %s '
                   '-T fields -e frame.time_relative -e icmpv6.echo.sequence_number '
-                  '"ipv6.%s==%s&&icmpv6.type==%i" '
+                  '"ipv6.%s==%s&&icmpv6.type==%i&&!(icmpv6.type==1)" '
                   '-E separator=,'
         ) # %(filename, field, ip, icmpv6.type)
         p = self.env.run_host(tshark % (self.filename, 'dst', ip, 128))
@@ -320,8 +355,9 @@ class ConnectivityMonitor(Monitor):
             res = rf.join_by('id', reps, reqs, jointype='outer')
             # Find largest "True"
             max_offline = 0
+            # Current_offline needs to be the first mesage
             current_offline = 0
-            last_sent = 0
+            last_sent = res.data['time_req'][0]
             i = 0
             while i < res.size:
                 #Offline window:
