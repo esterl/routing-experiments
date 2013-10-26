@@ -66,14 +66,17 @@ class NetworkGraph(igraph.Graph):
         time = time_wait() if callable(time_wait) else time_wait
         changes = []
         graph = self.copy()
-        links = list(set(graph.es).difference(graph.bridges()))
+        # Difference not working! links = list(set(graph.es).difference(graph.bridges()))
+        bridges = [ link.index for link in graph.bridges()]
+        links = list(set(graph.es.indices).difference(bridges))
         off_links = []
         while time < duration:
             # Randomly choose a link
             off = time_off()+time if callable(time_off) else time_off+time
             next = time_wait() if callable(time_wait) else time_wait
             if links:
-                link = Link(random.choice(links))
+                link = random.choice(links)
+                link = Link(graph.es(link)[0])
                 changes.append((time, link, 0))
                 # And disable it
                 heappush(off_links, (off,link))
@@ -86,7 +89,8 @@ class NetworkGraph(igraph.Graph):
                     changes.append((on_time, link, link.quality))
                     graph.add_edge(link.src, link.dst, quality=link.quality)
             if simultaneous:
-                links = list(set(graph.es).difference(graph.bridges()))
+                bridges = [ link.index for link in graph.bridges()]
+                links = list(set(graph.es.indices).difference(bridges))
         # Set graph 'link_changes' = timedelta, src, dst, quality
         self['link_changes'] = []
         current = 0
@@ -385,4 +389,39 @@ for gr in graphs:
     gr['src'] = src
     gr['dst'] = dst
     gr.save('/tmp/%s.pickle' % gr['name'], format='pickle')
+
+
+
+>>> import sys
+>>> from networkgraphs import *
+>>> import functools
+>>> import random
+>>> from datetime import timedelta as delta
+>>> import os.path
+>>> 
+>>> #Load base graph
+... experiment_length = delta(minutes=30).total_seconds()
+>>> file = sys.argv[1]
+>>> g = NetworkGraph.Read(file, format='gml')
+>>> g['name'] = os.path.basename(file).split('.')[0]
+>>> (src,dst) = g.get_longest_path()
+>>> g['src']=src
+>>> g['dst']=dst
+>>> base_q = functools.partial(random.choice, [3,5,7])
+>>> g.set_quality(base_q)
+>>> base_wait = functools.partial(random.expovariate, 1/30)
+>>> base_off = functools.partial(random.expovariate, 0.1/30)
+>>> g.random_link_changes(base_wait, base_off, experiment_length)
+f = 180
+wait = functools.partial(random.expovariate, 1/f)
+off = functools.partial(random.expovariate, 0.1/f)
+gr = g.copy()
+gr.random_link_changes(wait, off, experiment_length)
+i = 0
+gr['name'] = g['name'] + ('_base_%i_%i' % (f,i))
+(src,dst) = gr.get_longest_path()
+gr['src'] = src
+gr['dst'] = dst
+gr.save('/tmp/%s.pickle' % gr['name'], format='pickle')
 """
+
