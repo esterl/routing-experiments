@@ -348,7 +348,7 @@ class ConnectivityMonitor(Monitor):
         # TODO same ssh connection for all pings
         self.dst_ips = [ environment.get_ip6(dst, self.iface, self.vlan) for dst in self.dsts ]
         for ip in self.dst_ips:
-            ping = 'ping6 -q -n -i 0.1 %s' % ip
+            ping = 'ping6 -q -n -i 0.1 %s -W 2000' % ip
             thread = environment.run_node(self.src, ping, background=True)
             thread.stop()
         # Monitor with tcpdump
@@ -387,7 +387,7 @@ class ConnectivityMonitor(Monitor):
         # Get longest window
         tshark = ('tshark -r %s '
                   '-T fields -e frame.time_relative -e icmpv6.echo.sequence_number '
-                  '"ipv6.%s==%s&&icmpv6.type==%i" '
+                  '"ipv6.%s==%s&&icmpv6.type==%i&&!(icmpv6.type==1)" '
                   '-E separator=,'
         ) # %(filename, field, ip, icmpv6.type)
         p = self.env.run_host(tshark % (self.filename, 'dst', ip, 128))
@@ -408,8 +408,9 @@ class ConnectivityMonitor(Monitor):
             res = rf.join_by('id', reps, reqs, jointype='outer')
             # Find largest "True"
             max_offline = 0
+            # Current_offline needs to be the first mesage
             current_offline = 0
-            last_sent = 0
+            last_sent = res.data['time_req'][0]
             i = 0
             while i < res.size:
                 #Offline window:
