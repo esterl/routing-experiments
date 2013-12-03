@@ -79,6 +79,7 @@ for i in range(repetitions):
         # Start bmx6 in every node:
         inter_delay = functools.partial(random.uniform,0,5)
         routing = e.execute('BMX6', inter_delay=inter_delay, monitors=[cpu,mem])
+        # TODO fix so NetworMonitor does filter traffic
         net = monitors.NetworkMonitor(action=routing)
         net.add_interval(delta(minutes=10), delta(minutes=30), tag='steady')
         e.monitor(at=delta(0), monitors=[net])

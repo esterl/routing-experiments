@@ -189,105 +189,6 @@ class NetworkGraph(igraph.Graph):
         return (max_src, max_dst)
 
 """
-Generate set of graphs:
-from networkgraphs import NetworkGraph
-import functools
-import random
-from datetime import timedelta as delta
-
-experiment_length = delta(minutes=30).total_seconds()
-#g1 = NetworkGraph.Lattice([4,4])
-#g1['name'] = 'Lattice16'
-
-
-g = NetworkGraph.Static_Power_Law(50, 100, 3)
-g['name'] = 'PowerLaw50'
-base_q = functools.partial(random.choice, [3,5,7])
-g.set_quality(base_q)
-base_wait = functools.partial(random.expovariate, 1/30)
-base_off = functools.partial(random.expovariate, 0.1/30)
-g.random_link_changes(base_wait, base_off, experiment_length)
-graphs = []
-
-# Vary frequency
-freqs = [1, 10, 20, 30, 40, 50, 60]
-for f in freqs:
-    wait = functools.partial(random.expovariate, 1/f)
-    off = functools.partial(random.expovariate, 0.1/f)
-    gr = g.copy()
-    gr.random_link_changes(wait, off, experiment_length)
-    gr['name'] = g['name'] + ('_base_%i' % f)
-    graphs.append(gr)
-
-# Vary link quality
-qualities = [3,5,7,9,11,13]
-qs = []
-for q in qualities:
-    qs.append(q)
-    quality = functools.partial(random.choice, qs)
-    gr = g.copy()
-    gr.set_quality(quality)
-    gr['name'] = g['name'] + ('_%i_base' % q)
-    graphs.append(gr)
-
-for gr in graphs:
-    (src,dst) = gr.get_longest_path()
-    gr['src'] = src
-    gr['dst'] = dst
-    gr.save('/tmp/%s.pickle' % gr['name'], format='pickle')
-    
-
-# Vary graph size:
-sizes = [4,5,6,7,8,9,10]
-for size in sizes:
-    g1 = NetworkGraph.Lattice([size,size])
-    g1['name'] = 'Lattice%i_base' % (size*size)
-    g1.set_quality(base_q)
-    g1.random_link_changes(base_wait, base_off, experiment_length)
-    g2 = NetworkGraph.Static_Power_Law(size*size, size*size*2, 3)
-    g2['name'] = 'PowerLaw%i_base' % (size*size)
-    g2.set_quality(base_q)
-    g2.random_link_changes(base_wait, base_off, experiment_length)
-    graphs.extend([g1,g2])
-
-for gr in graphs:
-    (src,dst) = gr.get_longest_path()
-    gr['src'] = src
-    gr['dst'] = dst
-    gr.save('/tmp/%s.pickle' % gr['name'], format='pickle')
-    
-
-20 of each quality and each frequency:
-graphs = []
-# Vary frequency
-freqs = [1, 10, 20, 30, 40, 50, 60]
-for f in freqs:
-    for i in range(20):
-        wait = functools.partial(random.expovariate, 1/f)
-        off = functools.partial(random.expovariate, 0.1/f)
-        gr = g.copy()
-        gr.random_link_changes(wait, off, experiment_length)
-        gr['name'] = g['name'] + ('_base_%i_%i' % (f,i))
-        graphs.append(gr)
-
-# Vary link quality
-qualities = [3,5,7,9,11,13]
-qs = []
-for q in qualities:
-    for i in range(20):
-        qs.append(q)
-        quality = functools.partial(random.choice, qs)
-        gr = g.copy()
-        gr.set_quality(quality)
-        gr['name'] = g['name'] + ('_%i_base_%i' % (q,i))
-        graphs.append(gr)
-
-for gr in graphs:
-    (src,dst) = gr.get_longest_path()
-    gr['src'] = src
-    gr['dst'] = dst
-    gr.save('/tmp/%s.pickle' % gr['name'], format='pickle')
-
 # Generate from a list of already generated with igraph on R:
 # On R
 # Base graph with 56 nodes:
@@ -306,13 +207,21 @@ nodes = (5:10)^2
 
 for (node in nodes){
     links = ceiling(node*n.core.links/n.core.nodes)
-    for (i in 1:10){
+    for (i in 1:20){
         gr <- build.synthetic.graph(nodes=node, links=links, rate=rate.o, shape=shape.o)
         write.graph(gr, sprintf('/tmp/PowerLaw%i_%i.gml', node, i), format='gml')
     }
 }
 
-# On python3 - /tmp/PowerLaw[0-9]*.gml generate size and neighbor graphs:
+# For the neighbors generate 20 networks with 50 nodes
+nodes = 50
+links = ceiling(nodes*n.core.links/n.core.nodes)
+for (i in 1:20){
+    gr <- build.synthetic.graph(nodes=nodes, links=links, rate=rate.o, shape=shape.o)
+    write.graph(gr, sprintf('/tmp/PowerLaw%i_%i.gml', 50, i), format='gml')
+}
+
+# On python3 - /tmp/PowerLaw[0-9]*.gml generate size graphs:
 import sys
 from networkgraphs import *
 import functools
@@ -335,6 +244,7 @@ for file in files:
     base_off = functools.partial(random.expovariate, 0.1/30)
     g.random_link_changes(base_wait, base_off, experiment_length)
     g.save('/tmp/%s.pickle' % g['name'], format='pickle')
+
 
 #On python3 - /tmp/PowerLawBase.gml
 import sys
@@ -361,9 +271,9 @@ g.random_link_changes(base_wait, base_off, experiment_length)
 # Frequency:
 graphs = []
 # Vary frequency
-freqs = [1, 10, 20, 30, 40, 50, 60]
+freqs = [1, 10, 20, 30, 40, 50, 60, 120, 180, 300, 600, 1800]
 for f in freqs:
-    for i in range(10):
+    for i in range(20):
         wait = functools.partial(random.expovariate, 1/f)
         off = functools.partial(random.expovariate, 0.1/f)
         gr = g.copy()

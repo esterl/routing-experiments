@@ -46,8 +46,10 @@ class MLCEnvironment(Environment):
     def prepare(self):
         check_root()
         run('./mlc-init-host.sh > /dev/null', async=False)
+        run('mlc_net_flush', async=False)
     
     def prepare_topology(self, topology):
+        #run('mlc_qdisc_prepare', async=False)
         for [i,n] in enumerate(topology.vs):
             n['MLC_id'] = 1000+i
             n['up'] = False
@@ -194,6 +196,8 @@ class MLCEnvironment(Environment):
         t = self.experiment.topology
         for link in t.es():
             self._set_link(link.source, link.target)
+        # Prepare qdisc
+        run('mlc_qdisc_prepare', async=False)
     
     def _stop_nodes(self, nodes):
         logging.debug('Stopping nodes')
