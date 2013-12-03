@@ -192,6 +192,8 @@ class MLCEnvironment(Environment):
             n = self.experiment.topology.vs[node]
             run('mlc_loop --min %i -b' % n['MLC_id'], async=False)
             n['up'] = BOOTING
+            # To be able to run mlc_qdisc_prepare we need to wait until it is up:
+            run('lxc-wait -n mlc%i -s RUNNING' % n['MLC_id'], async=False, mlc=False)
         #Stablish links
         t = self.experiment.topology
         for link in t.es():
