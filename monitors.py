@@ -208,7 +208,7 @@ class MemoryMonitor(Monitor):
         self.data = dict(zip(header, mean))
         # TODO Update numpy version so that it can have a header or write manually the header
         # numpy.savetxt(self.filename, data, delimiter=',', header=','.join(header))
-        numpy.savetxt(self.filename, data, delimiter=',')
+        #numpy.savetxt(self.filename, data, delimiter=',')
     
     def get_target_data(self):
         return (self.target, self.data)
@@ -275,6 +275,59 @@ class CPUMonitor(Monitor):
     def get_target_data(self):
         return (self.target, self.data)
 
+
+class InstructionsMonitor(Monitor):
+    def __init__(self, basename='instructions'):
+        self.basename = basename
+    
+    def start(self, environment):
+        self.env = environment
+        perf = ('perf stat -e instructions:u,instructions:k '
+                '--pid %i --log-fd 2 2> /tmp/%s'
+        ) % (self.action.pid, self.basename)
+        thread = environment.run_node(self.target, perf, background=True)
+        self.pid = thread.pid
+        thread.stop()
+    
+    def stop(self):
+        thread = self.env.run_node(self.target, 'kill -s 2 %s' % self.pid)
+        thread.execute('cat /tmp/%s' % self.basename)
+        output = thread.get_stdout()
+        self.data = dict()
+        if output.startswith("Problems"):
+            return
+        
+        output = [ line for line in output.split('\n') if line != '']
+        import locale
+        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
+        instructions_userspace = [line for line in output if 'instructions:u' in line]
+        if instructions_userspace:
+            val = re.findall('\s*([\d\.\,]+).*',instructions_userspace[0])
+            if val: instructions_userspace = str(locale.atoi(val[0]))
+            else: instructions_userspace = '<NA>'
+        else: instructions_userspace = '<NA>'
+        instructions_kernelspace = [line for line in output if 'instructions:k' in line]
+        if instructions_kernelspace:
+            val = re.findall('\s*([\d\.\,]+).*',instructions_kernelspace[0])
+            if val: instructions_kernelspace = str(locale.atoi(val[0]))
+            else: instructions_kernelspace = '<NA>'
+        else: instructions_kernelspace = '<NA>'
+        duration = [line for line in output if 'seconds time elapsed' in line]
+        if duration:
+            val = re.findall('\s*([\d\.\,]+).*',duration[0])
+            if val: duration = str(locale.atof(val[0]))
+            else: duration = '<NA>'
+        else: duration = '<NA>'
+        #output = [ line.split(',') for line in output.split('\n') if line != '']
+        #for line in output:
+        #    self.data[line[1]] = line[0]
+        #thread.stop()
+        self.data['instructions_userspace'] = instructions_userspace
+        self.data['instructions_kernelspace'] = instructions_kernelspace
+        self.data['duration'] = duration
+    
+    def get_target_data(self):
+        return (self.target, self.data)
 
 
 class ConnectivityMonitor(Monitor):
