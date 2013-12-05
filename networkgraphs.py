@@ -162,18 +162,20 @@ class NetworkGraph(igraph.Graph):
     def save(self, filename, format='graphml'):
         # Save link_changes
         self.vs['node_id'] = self.vs.indices
+        copy = self.copy()
         if format != 'pickle':
             try:
                 changes = self['link_changes']
                 with open('%s_changes' % filename, 'w') as f:
                     for ( time, src, dst, q ) in changes:
                         f.write('%f %i %i %i\n' % (time.total_seconds(), src, dst, q))
+                del copy['link_changes']
             except KeyError:
                 pass
         logging.info(self)
         logging.info(filename)
         logging.info(format)
-        super(NetworkGraph, self).save(filename, format)
+        super(NetworkGraph, copy).save(filename, format)
     
     def get_longest_path(self):
         paths = self.shortest_paths_dijkstra()

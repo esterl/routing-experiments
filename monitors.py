@@ -131,7 +131,7 @@ class NetworkMonitor(Monitor):
                 ]
             elif version == '1.6.7':
                 stats = stats.split()
-                print(stats)
+                #print(stats)
                 duration = float(stats[2]) - float(stats[1])
                 stats = [
                     self.filename,
